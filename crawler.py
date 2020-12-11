@@ -455,7 +455,7 @@ def insertAveragesIfOccurs(connection,type):
     connection.commit()
     connection.close()
 
-def insertToSQL(connection, rows,type):
+def insertMappingToSQL(connection, rows,type):
     cursor = connection.cursor()
     for row in rows:
         # print(
@@ -480,7 +480,7 @@ def insertToSQL(connection, rows,type):
         #     '""" + row.Price + """'); \
         #     """
         #     )
-        # print(row)
+        print(row)
         if type == 'mysql':
             cursor.execute("""INSERT INTO Mapping \
             VALUES \
@@ -524,6 +524,28 @@ def insertToSQL(connection, rows,type):
             row.Price
             )
             cursor.execute(sql,data_tuple)
+    connection.commit()
+    connection.close()
+
+def insertMappingStoryToSQL(connection,type):
+    cursor = connection.cursor()
+    if type == 'mysql':
+        sql = "INSERT INTO Mapping_story SELECT Mapping.* FROM Mapping LEFT JOIN Mapping_story on Mapping.Data = Mapping_story.DATA where Mapping_story.DATA is null"
+    elif type == 'sqlite':
+        sql = "INSERT INTO Mapping_story SELECT Mapping.* FROM Mapping LEFT JOIN Mapping_story on Mapping.Data = Mapping_story.DATA where Mapping_story.DATA is null"
+    print(sql)
+    cursor.execute(sql)
+    connection.commit()
+    connection.close()
+
+def insertAveragesStoryToSQL(connection,type):
+    cursor = connection.cursor()
+    if type == 'mysql':
+        sql = "INSERT INTO Averages_story SELECT Averages.*,'"+output_timestamp+"' FROM Averages WHERE '"+output_timestamp+"' NOT IN (SELECT DISTINCT DATA FROM Averages_story)"
+    elif type == 'sqlite':
+        sql = "INSERT INTO Averages_story SELECT Averages.*,'"+output_timestamp+"' FROM Averages WHERE '"+output_timestamp+"' NOT IN (SELECT DISTINCT DATA FROM Averages_story)"
+    print(sql)
+    cursor.execute(sql)
     connection.commit()
     connection.close()
 
@@ -628,6 +650,10 @@ def insertNewOpportunities(connection,type):
         )
     connection.commit()
     connection.close()
+
+def updateExistingOpportunities(connection,type):
+    return  
+##########################################################################
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
 DIRECTORY = os.environ.get("DIRECTORY")
 
@@ -649,8 +675,9 @@ i = 0
 futures = []
 
 start_time = time()
-output_timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-
+#output_timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+output_timestamp = datetime.datetime.now().strftime("%Y%m%d")
+print(output_timestamp)
 path = ROOT_DIR+"\\IMMOBILIARE\\"
 
 if os.path.exists(path):
@@ -683,7 +710,6 @@ print(f"Elapsed run time SCRAPING: {elapsed_time} seconds")
 
 print("truncate")
 start_time = time()
-output_timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 
 
 truncateSQLTable(connectToSQL(), 'Mapping','mysql')
@@ -710,8 +736,8 @@ for subdir, dirs, files in os.walk(ROOT_DIR+"\\IMMOBILIARE\\"):
 
 print("insertion")
 start_time = time()
-output_timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-insertToSQL(connectToSQL(), rows, 'mysql')
+
+insertMappingToSQL(connectToSQL(), rows, 'mysql')
 end_time = time()
 elapsed_time = end_time - start_time
 print(f"Elapsed run time INSERTION: {elapsed_time} seconds")
@@ -731,8 +757,12 @@ updateAverages(connectToSQL(),"mysql")
 cleanOutOfRange(connectToSQL(),'mysql')
 updateAverages(connectToSQL(),"mysql")
 
+insertMappingStoryToSQL(connectToSQL(),"mysql")
+insertAveragesStoryToSQL(connectToSQL(),"mysql")
+
 insertNewOpportunities(connectToSQL(),"mysql")
 
+updateExistingOpportunities(connectToSQL(),"mysql")
 
 conn = connectToSQLite()
 
@@ -750,11 +780,11 @@ if conn != None:
         `MICROZONE` varchar(10) NOT NULL,
         `ID` varchar(50) NOT NULL,
         `URL` varchar(200) NOT NULL,
-        `AGENCY` varchar(50) DEFAULT NULL,
+        `AGENCY` varchar(100) DEFAULT NULL,
         `ADDRESS` varchar(100) NOT NULL,
         `MQ` varchar(10) DEFAULT NULL,
         `RANGE` varchar(50) NOT NULL,
-        `FLOOR` varchar(20) NOT NULL,
+        `FLOOR` varchar(100) NOT NULL,
         `AUCTION` int(1) NOT NULL,
         `TOILET` int(1) NOT NULL,
         `DATA` varchar(10) DEFAULT NULL,
@@ -794,7 +824,7 @@ if conn != None:
         `MQ` varchar(10) DEFAULT NULL,
         `RANGE` varchar(50) NOT NULL,
         `MZ_RANGE` varchar(20) NOT NULL,
-        `PIANO` varchar(20) NOT NULL,
+        `PIANO` varchar(100) NOT NULL,
         `AUCTION` int(1) NOT NULL,
         `TOILET` int(11) NOT NULL,
         `DATA` varchar(10) DEFAULT NULL,
@@ -827,12 +857,50 @@ if conn != None:
     (111, 500, '111_500', 0.7);
     """
     )
+    c.execute(
+    """
+    CREATE TABLE IF NOT EXISTS `Mapping_story` (
+    `COUNTRY` varchar(50) NOT NULL,
+    `REGION` varchar(50) NOT NULL,
+    `PROVINCE` varchar(50) NOT NULL,
+    `CITY` varchar(50) NOT NULL,
+    `MICROZONE` varchar(10) NOT NULL,
+    `ID` varchar(50) NOT NULL,
+    `URL` varchar(200) NOT NULL,
+    `AGENCY` varchar(100) DEFAULT NULL,
+    `ADDRESS` varchar(100) NOT NULL,
+    `MQ` varchar(10) DEFAULT NULL,
+    `RANGE` varchar(50) NOT NULL,
+    `FLOOR` varchar(100) DEFAULT NULL,
+    `AUCTION` int(1) NOT NULL,
+    `TOILET` int(11) NOT NULL,
+    `DATA` varchar(10) DEFAULT NULL,
+    `PRICE` varchar(20) NOT NULL
+    );
+    """
+    )
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS `Averages_story` (
+        `MZ_RANGE` varchar(20) NOT NULL,
+        `MZ` varchar(10) NOT NULL,
+        `RANGE` varchar(10) NOT NULL,
+        `ABBATTIMENTO` float NOT NULL,
+        `AVG_PREZZO` int(11) DEFAULT NULL,
+        `AVG_PREZZO_MQ` int(11) DEFAULT NULL,
+        `PRICE_ABBATTUTO` int(11) DEFAULT NULL,
+        `PRICE_ABBATTUTO_MQ` int(11) DEFAULT NULL,
+        `CNT_MZ` int(11) DEFAULT NULL,
+        `DATA` varchar(10) DEFAULT NULL
+        );
+        """
+    )
 conn.commit()
 
 truncateSQLTable(connectToSQLite(), 'Mapping','sqlite')
 truncateSQLTable(connectToSQLite(), 'Averages','sqlite')
 
-insertToSQL(connectToSQLite(), rows, 'sqlite')
+insertMappingToSQL(connectToSQLite(), rows, 'sqlite')
 cleanAuctions(connectToSQLite())
 cleanZeroPrice(connectToSQLite())
 updateRangesMapping(connectToSQLite(),"sqlite")
@@ -844,8 +912,13 @@ updateAverages(connectToSQLite(),"sqlite")
 cleanOutOfRange(connectToSQLite(),'sqlite')
 updateAverages(connectToSQLite(),"sqlite")
 
+insertMappingStoryToSQL(connectToSQLite(),"sqlite")
+insertAveragesStoryToSQL(connectToSQLite(),"sqlite")
+
 insertNewOpportunities(connectToSQLite(),"sqlite")
 
+
+updateExistingOpportunities(connectToSQLite(),"sqlite")
 conn.close()
 
 

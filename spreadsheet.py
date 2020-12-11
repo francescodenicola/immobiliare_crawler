@@ -72,8 +72,7 @@ def Averages():
     try:
         last_row = values[-1]
         print(last_row)
-        SAMPLE_RANGE_NAME_CLEAR = SHEET_NAME+'!C
-        3:I'+str(i+1)
+        SAMPLE_RANGE_NAME_CLEAR = SHEET_NAME+'!C3:I'+str(i+1)
         print(SAMPLE_RANGE_NAME_CLEAR)
     
         resultClear = service.spreadsheets( ).values( ).clear(spreadsheetId=SAMPLE_SPREADSHEET_ID, range=SAMPLE_RANGE_NAME_CLEAR).execute()
