@@ -76,20 +76,31 @@ def get_data_immobiliare(web_addr, path, name, origin):
         json.dump(json_object, outfile)
 
 
-def connectToSQL():
+def connectToSQL(type):
     DB_SERVER = os.environ.get("DB_SERVER")
     DB_USERNAME = os.environ.get("DB_USERNAME")
     DB_PASSWORD = os.environ.get("DB_PASSWORD")
     DB_NAME = os.environ.get("DB_NAME")
-    cnxn = pyodbc.connect(
-        'DRIVER={MySQL ODBC 8.0 ANSI Driver};SERVER=' +
-        DB_SERVER +
-        ';DATABASE=' +
-        DB_NAME +
-        ';UID=' +
-        DB_USERNAME +
-        ';PWD=' +
-        DB_PASSWORD)
+    DB_PORT = os.environ.get("DB_PORT")
+    if type == 'mysql':
+        cnxn = pyodbc.connect(
+            'DRIVER={MySQL ODBC 8.0 ANSI Driver};SERVER=' +
+            DB_SERVER +
+            ';DATABASE=' +
+            DB_NAME +
+            ';UID=' +
+            DB_USERNAME +
+            ';PWD=' +
+            DB_PASSWORD)
+    else:
+        cnxn = pyodbc.connect(
+            'Driver={ODBC Driver 13 for SQL Server};Server=tcp:'+
+            DB_SERVER + "," + DB_PORT + ';DATABASE=' +
+            DB_NAME +
+            ';UID=' +
+            DB_USERNAME +
+            ';PWD=' +
+            DB_PASSWORD)
     return cnxn
 
 def connectToSQLite():
@@ -283,9 +294,17 @@ def cleanZeroPrice(connection):
     connection.close()
     return deleted_row_count
 
+def cleanZeroMQ(connection):
+    cursor = connection.cursor()
+    cursor.execute("DELETE FROM Mapping WHERE MQ = '';")
+    deleted_row_count = cursor.rowcount
+    connection.commit()
+    connection.close()
+    return deleted_row_count
+
 def cleanOutOfRange(connection,type):
     cursor = connection.cursor()
-    if type == 'mysql':
+    if type == 'mysql_old':
         cursor.execute(
             """
             delete from Mapping 
@@ -299,6 +318,24 @@ def cleanOutOfRange(connection,type):
                     from Mapping INNER JOIN  Averages ON 
                     concat(Mapping.MICROZONE, "_", Mapping.RANGE)  = Averages.MZ_RANGE
             )del where ABBATTIMENTO > 1
+            )
+            """
+        )
+    elif type == 'mysql':
+        cursor.execute(
+            """
+            delete from Mapping 
+            where Mapping.ID in(
+            select del.ID from(
+            select Mapping.id,case when Averages.RANGE = '0_50' OR Averages.RANGE = '51_70' then (Mapping.Price - Averages.PRICE_ABBATTUTO) / Averages.PRICE_ABBATTUTO
+                    ELSE
+                    ((try_cast(Mapping.PRICE as int) / try_cast(Mapping.MQ as int) ) - try_cast(Averages.PRICE_ABBATTUTO_MQ as int)) / try_cast(Averages.PRICE_ABBATTUTO_MQ as int)
+                    END
+                    as ABBATTIMENTO
+                    from Mapping INNER JOIN  Averages ON 
+                    concat(Mapping.MICROZONE, '_', Mapping.RANGE)  = Averages.MZ_RANGE
+            )del where ABBATTIMENTO > 1
+ 
             )
             """
         )
@@ -322,8 +359,10 @@ def cleanOutOfRange(connection,type):
 
 def updateRangesMapping(connection,type):
     cursor = connection.cursor()
-    if type == "mysql":
+    if type == "mysql_old":
         cursor.execute("UPDATE Mapping INNER JOIN Ranges on CONVERT(CAST(Mapping.MQ AS DECIMAL(10,6)),UNSIGNED INTEGER) >= Ranges.MIN and CONVERT(CAST(Mapping.MQ AS DECIMAL(10,6)),UNSIGNED INTEGER) <= Ranges.MAX SET Mapping.RANGE = Ranges.RANGE ;")
+    elif type == "mysql":
+        cursor.execute("UPDATE Mapping SET Mapping.RANGE = Ranges.RANGE from mapping INNER JOIN Ranges on CONVERT(INTEGER,TRY_CAST(Mapping.MQ AS DECIMAL(10,6))) >= Ranges.MIN and CONVERT(INTEGER,TRY_CAST(Mapping.MQ AS DECIMAL(10,6))) <= Ranges.MAX ")
     elif type == "sqlite":
         cursor.execute(
             """
@@ -341,7 +380,7 @@ def updateRangesMapping(connection,type):
 
 def updateAverages(connection,type):
     cursor = connection.cursor()
-    if type == 'mysql':
+    if type == 'mysql_old':
         cursor.execute("""
         UPDATE Averages
         INNER join 
@@ -354,6 +393,21 @@ def updateAverages(connection,type):
         )Map 
         on Map.MZ_RANGE= Averages.MZ_RANGE
         SET Averages.AVG_PREZZO = Map.AVG_PREZZO,Averages.AVG_PREZZO_MQ = Map.AVG_PREZZO_MQ,Averages.PRICE_ABBATTUTO = Map.AVG_PREZZO*Averages.ABBATTIMENTO , Averages.PRICE_ABBATTUTO_MQ = Map.AVG_PREZZO_MQ*Averages.ABBATTIMENTO, CNT_MZ= COUNT_MZ;
+        """)
+    elif type == 'mysql':
+        cursor.execute("""
+        UPDATE Averages
+        SET Averages.AVG_PREZZO = Map.AVG_PREZZO,Averages.AVG_PREZZO_MQ = Map.AVG_PREZZO_MQ,Averages.PRICE_ABBATTUTO = Map.AVG_PREZZO*Averages.ABBATTIMENTO , Averages.PRICE_ABBATTUTO_MQ = Map.AVG_PREZZO_MQ*Averages.ABBATTIMENTO, CNT_MZ= COUNT_MZ
+        FROM Averages
+        INNER join 
+        (SELECT concat(Mapping.MICROZONE,'_', Mapping.RANGE) AS MZ_RANGE,
+        AVG(try_cast(try_cast(Mapping.PRICE as numeric) AS int)) AS AVG_PREZZO,
+        AVG(try_cast(try_cast(Mapping.PRICE as numeric) as int) / try_cast(try_cast(Mapping.MQ as numeric) as int)) AS AVG_PREZZO_MQ,
+        COUNT(Mapping.ID) AS COUNT_MZ
+        from Mapping
+        GROUP BY Mapping.MICROZONE, Mapping.RANGE
+        )Map 
+        on Map.MZ_RANGE= Averages.MZ_RANGE  
         """)
     elif type == 'sqlite':
         cursor.execute(
@@ -392,7 +446,7 @@ def updateAverages(connection,type):
 
 def updateOpportunitiesValues(connection,type):
     cursor = connection.cursor()
-    if type == "mysql":
+    if type == "mysql_old":
         cursor.execute("""
         UPDATE Opportunity
         JOIN
@@ -409,36 +463,62 @@ def updateOpportunitiesValues(connection,type):
         Opportunity.PRICE_MQ = ABB.PMQ,
         Opportunity.SCOSTAMENTO = ABB.ABBATTIMENTO;
         """)
+    elif type == "mysql":
+        """
+        UPDATE Opportunity
+        SET Opportunity.PRICE = ABB.P,
+        Opportunity.PRICE_MQ = ABB.PMQ,
+        Opportunity.SCOSTAMENTO = ABB.ABBATTIMENTO
+        FROM Opportunity
+        JOIN
+        (select Mapping.ID as ID,try_cast(try_cast(Mapping.Price as numeric) as int) as P, Mapping.PRICE/try_cast(try_cast(Mapping.MQ as numeric) as int)  as PMQ, case when Averages.RANGE = '0_50' OR Averages.RANGE = '51_70' then (try_cast(try_cast(Mapping.Price as numeric) as float) - try_cast(try_cast(Averages.PRICE_ABBATTUTO as numeric) as float) ) / try_cast(try_cast(Averages.PRICE_ABBATTUTO as numeric) as float) 
+                ELSE
+                ((try_cast(try_cast(Mapping.Price as numeric) as float) / try_cast(try_cast(Mapping.MQ as numeric) as float) ) - try_cast(try_cast(Averages.PRICE_ABBATTUTO_MQ as numeric) as int)) / try_cast(try_cast(Averages.PRICE_ABBATTUTO_MQ as numeric) as float)
+                END
+                as ABBATTIMENTO
+                from Mapping JOIN Opportunity ON Mapping.ID = Opportunity.ID INNER JOIN  Averages ON 
+                concat(Mapping.MICROZONE, '_', Mapping.RANGE)  = Averages.MZ_RANGE  
+        )ABB
+        on ID = ABB.ID
+        """
     elif type == "sqlite":
         cursor.execute(
             """
             UPDATE Opportunity
-            SET PRICE = (SELECT Mapping.PRICE FROM MAPPING WHERE OPPORTUNITY.ID = MAPPING.ID),
-            PRICE_MQ = (SELECT Mapping.PRICE/MQ FROM MAPPING WHERE OPPORTUNITY.ID = MAPPING.ID),
-            SCOSTAMENTO =
-            (select case when Averages.RANGE = '0_50' OR Averages.RANGE = '51_70' then (Mapping.Price - Averages.PRICE_ABBATTUTO) / Averages.PRICE_ABBATTUTO
-                    ELSE
-                    ((Mapping.PRICE / Mapping.MQ) - Averages.PRICE_ABBATTUTO_MQ) / Averages.PRICE_ABBATTUTO_MQ
-                    END
-                    as ABBATTIMENTO
-                    from Mapping INNER JOIN  Averages ON 
-                    Mapping.MICROZONE || "_" || Mapping.RANGE  = Averages.MZ_RANGE
-                    AND
-                    Opportunity.ID = Mapping.ID
-            )
-            WHERE EXISTS (SELECT * FROM Opportunity join Mapping on Opportunity.ID = Mapping.ID)          
+            SET 
+            DATA = (SELECT Mapping.DATA FROM Mapping WHERE Opportunity.ID = Mapping.ID),
+            PRICE = (SELECT Mapping.PRICE FROM Mapping WHERE Opportunity.ID = Mapping.ID),
+            PRICE_MQ = (SELECT Mapping.PRICE/Mapping.MQ FROM Mapping WHERE Opportunity.ID = Mapping.ID),
+            SCOSTAMENTO = (select ABBATTIMENTO from (select case when Averages.RANGE = '0_50' OR Averages.RANGE = '51_70' then (Mapping.Price - Averages.PRICE_ABBATTUTO) / Averages.PRICE_ABBATTUTO
+            ELSE
+            ((Mapping.PRICE / Mapping.MQ) - Averages.PRICE_ABBATTUTO_MQ) / Averages.PRICE_ABBATTUTO_MQ
+            END
+            as ABBATTIMENTO,Mapping.ID
+            from Mapping INNER JOIN  Averages ON 
+            Mapping.MICROZONE || "_" || Mapping.RANGE  = Averages.MZ_RANGE
+            )Mapping_abbattuto WHERE Mapping_abbattuto.ID = Opportunity.ID),
+            UPDATED = (SELECT CASE WHEN Opportunity.PRICE > Mapping.PRICE THEN 'RIBASSATO' WHEN Opportunity.PRICE < Mapping.PRICE THEN 'RIALZATO' ELSE FALSE END FROM Mapping where Mapping.ID = Opportunity.ID)
+            WHERE ID in (SELECT distinct Opportunity.ID FROM Opportunity join Mapping on Opportunity.ID = Mapping.ID)          
             """)
     connection.commit()
     connection.close()
 
 def insertAveragesIfOccurs(connection,type):
     cursor = connection.cursor()
-    if type == 'mysql':
+    if type == 'mysql_old':
         cursor.execute("""
         INSERT INTO Averages
         SELECT DISTINCT concat(Mapping.MICROZONE,"_", Mapping.RANGE),Mapping.MICROZONE, Mapping.RANGE, Ranges.ABBATTIMENTO, NULL,NULL, NULL,NULL,count(ID)
         from Mapping join Ranges on Mapping.RANGE = Ranges.RANGE
         WHERE concat(Mapping.MICROZONE,"_", Mapping.RANGE) NOT IN (SELECT DISTINCT MZ_RANGE FROM Averages)
+        GROUP BY Mapping.MICROZONE, Mapping.RANGE, Ranges.ABBATTIMENTO;
+        """)
+    elif type == 'mysql':
+        cursor.execute("""
+        INSERT INTO Averages
+        SELECT DISTINCT concat(Mapping.MICROZONE,'_', Mapping.RANGE),Mapping.MICROZONE, Mapping.RANGE, Ranges.ABBATTIMENTO, NULL,NULL, NULL,NULL,count(ID)
+        from Mapping join Ranges on Mapping.RANGE = Ranges.RANGE
+        WHERE concat(Mapping.MICROZONE,'_', Mapping.RANGE) NOT IN (SELECT DISTINCT MZ_RANGE FROM Averages)
         GROUP BY Mapping.MICROZONE, Mapping.RANGE, Ranges.ABBATTIMENTO;
         """)
     elif type == 'sqlite':
@@ -457,7 +537,7 @@ def insertAveragesIfOccurs(connection,type):
 
 def insertMappingToSQL(connection, rows,type):
     cursor = connection.cursor()
-    for row in rows:
+    
         # print(
         # """INSERT INTO Mapping \
         #     VALUES \
@@ -480,8 +560,9 @@ def insertMappingToSQL(connection, rows,type):
         #     '""" + row.Price + """'); \
         #     """
         #     )
-        print(row)
-        if type == 'mysql':
+        # print(row)
+    if type == 'mysql_old':
+        for row in rows:
             cursor.execute("""INSERT INTO Mapping \
             VALUES \
             ( \
@@ -503,9 +584,12 @@ def insertMappingToSQL(connection, rows,type):
             '""" + row.Price + """'); \
             """
             )
-        elif type == 'sqlite':
-            sql = "INSERT INTO Mapping (COUNTRY,REGION,PROVINCE,CITY,MICROZONE,ID,URL,AGENCY,ADDRESS,MQ,RANGE,FLOOR,AUCTION,TOILET,DATA,PRICE) VALUES ( ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
-            data_tuple = ( 
+    elif type == 'mysql':
+        sql = "INSERT INTO MAPPING (COUNTRY,REGION,PROVINCE,CITY,MICROZONE,ID,URL,AGENCY,ADDRESS,MQ,RANGE,FLOOR,AUCTION,TOILET,DATA,PRICE) VALUES ( ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        data_tuple = []
+        for row in rows:
+            print(row)
+            data_tuple.append([ 
             row.Country, 
             row.Region,
             row.Province,
@@ -522,8 +606,34 @@ def insertMappingToSQL(connection, rows,type):
             str(row.Toilet),
             row.Date,
             row.Price
+            ]
             )
-            cursor.execute(sql,data_tuple)
+        cursor.fast_executemany = True
+        cursor.executemany(sql,data_tuple)
+    elif type == 'sqlite':        
+        sql = "INSERT INTO Mapping (COUNTRY,REGION,PROVINCE,CITY,MICROZONE,ID,URL,AGENCY,ADDRESS,MQ,RANGE,FLOOR,AUCTION,TOILET,DATA,PRICE) VALUES ( ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+        data_tuple = []
+        for row in rows:
+            data_tuple.append([
+            row.Country, 
+            row.Region,
+            row.Province,
+            row.City,
+            row.Microzone, 
+            row.id,
+            row.url,
+            str(row.Agency),
+            row.Address,
+            str(row.MQ),
+            row.Range,
+            str(row.Floor),
+            str(row.Auction),
+            str(row.Toilet),
+            row.Date,
+            row.Price
+            ]
+            )
+        cursor.executemany(sql,data_tuple)
     connection.commit()
     connection.close()
 
@@ -562,7 +672,7 @@ def getAverages(connection,type):
 
 def insertNewOpportunities(connection,type):
     cursor = connection.cursor()
-    if type == 'mysql':
+    if type == 'mysql_old':
         a = cursor.execute(
         """
         insert into Opportunity
@@ -588,7 +698,7 @@ def insertNewOpportunities(connection,type):
         PRICE,
         (PRICE / MQ),
         ABBATTIMENTO,
-        'n.a.',
+        AGENCY,
         FALSE,
         FALSE
         FROM
@@ -599,6 +709,49 @@ def insertNewOpportunities(connection,type):
         as ABBATTIMENTO
         , Mapping.* from Mapping join Averages ON
         concat(Mapping.MICROZONE,"_", Mapping.RANGE) = Averages.MZ_RANGE
+        )Mapping_abbattuto
+        where Mapping_abbattuto.ID not in (select distinct ID from Opportunity)
+        and
+        Mapping_abbattuto.ABBATTIMENTO <=10
+        """
+        )
+    elif type == 'mysql':
+        a = cursor.execute(
+        """
+        insert into Opportunity
+        select
+        NULL,
+        DATA,
+        'Nuova',
+        COUNTRY,
+        REGION,
+        PROVINCE,
+        CITY,
+        MICROZONE,
+        ID,
+        URL,
+        ADDRESS,
+		mq,
+        RANGE,
+        concat(MICROZONE,'_',RANGE),
+        FLOOR,
+        AUCTION,
+        TOILET,
+        DATA,
+        PRICE,
+        (try_cast(TRY_CAST(PRICE AS NUMERIC) as int))/ (try_cast(TRY_CAST(MQ AS NUMERIC) as int)),
+        ABBATTIMENTO,
+        AGENCY,
+        0,
+        0
+        FROM
+        (select case when Averages.RANGE = '0_50' OR Averages.RANGE = '51_70' then try_cast(try_cast(Mapping.Price as numeric) as int) - (try_cast(try_cast(Averages.PRICE_ABBATTUTO as numeric) as int) / try_cast(try_cast(Averages.PRICE_ABBATTUTO as numeric) as int))
+        ELSE
+        ((try_cast(TRY_CAST(Mapping.PRICE AS NUMERIC) as float)/ (try_cast(TRY_CAST(Mapping.MQ AS NUMERIC) as float))) - try_cast(try_cast(Averages.PRICE_ABBATTUTO_MQ as numeric) as float)) / try_cast(try_cast(Averages.PRICE_ABBATTUTO_MQ as numeric) as float)
+        END
+        as ABBATTIMENTO
+        , Mapping.* from Mapping join Averages ON
+        concat(Mapping.MICROZONE,'_', Mapping.RANGE) = Averages.MZ_RANGE
         )Mapping_abbattuto
         where Mapping_abbattuto.ID not in (select distinct ID from Opportunity)
         and
@@ -631,7 +784,7 @@ def insertNewOpportunities(connection,type):
         PRICE,
         (PRICE / MQ),
         ABBATTIMENTO,
-        'n.a.',
+        AGENCY,
         FALSE,
         FALSE
         FROM
@@ -652,7 +805,90 @@ def insertNewOpportunities(connection,type):
     connection.close()
 
 def updateExistingOpportunities(connection,type):
-    return  
+    cursor = connection.cursor()
+    if type == 'mysql_old':
+        a = cursor.execute(
+        """
+        UPDATE Opportunity
+        JOIN
+        (select case when Averages.RANGE = '0_50' OR Averages.RANGE = '51_70' then (Mapping.Price - Averages.PRICE_ABBATTUTO) / Averages.PRICE_ABBATTUTO
+        ELSE
+        ((Mapping.PRICE / Mapping.MQ) - Averages.PRICE_ABBATTUTO_MQ) / Averages.PRICE_ABBATTUTO_MQ
+        END
+        as ABBATTIMENTO
+        , Mapping.* from Mapping join Averages ON
+        concat(Mapping.MICROZONE,"_", Mapping.RANGE) = Averages.MZ_RANGE
+        )Mapping_abbattuto on Mapping_abbattuto.ID = Opportunity.ID
+        SET 
+        Opportunity.DATA = Mapping_abbattuto.DATA,
+        Opportunity.PRICE = Mapping_abbattuto.PRICE,
+        Opportunity.PRICE_MQ = (Mapping_abbattuto.PRICE / Mapping_abbattuto.MQ),
+        Opportunity.SCOSTAMENTO = Mapping_abbattuto.ABBATTIMENTO,
+        Opportunity.UPDATED = CASE WHEN Opportunity.SCOSTAMENTO < Mapping_abbattuto.ABBATTIMENTO THEN 'RIBASSATO' WHEN Opportunity.SCOSTAMENTO < Mapping_abbattuto.ABBATTIMENTO THEN 'RIALZATO' ELSE FALSE END
+        WHERE Mapping_abbattuto.ID = Opportunity.ID and Mapping_abbattuto.PRICE <> Opportunity.PRICE
+        """
+        )
+    elif type == 'mysql':
+        """
+        UPDATE Opportunity
+        SET 
+        Opportunity.DATA = Mapping_abbattuto.DATA,
+        Opportunity.PRICE = Mapping_abbattuto.PRICE,
+        Opportunity.PRICE_MQ = (Mapping_abbattuto.PRICE / Mapping_abbattuto.MQ),
+        Opportunity.SCOSTAMENTO = Mapping_abbattuto.ABBATTIMENTO,
+        Opportunity.UPDATED = CASE WHEN Opportunity.SCOSTAMENTO < Mapping_abbattuto.ABBATTIMENTO THEN 'RIBASSATO' WHEN Opportunity.SCOSTAMENTO < Mapping_abbattuto.ABBATTIMENTO THEN 'RIALZATO' ELSE FALSE END
+        from Opportunity
+        JOIN
+        (select case when Averages.RANGE = '0_50' OR Averages.RANGE = '51_70' then (Mapping.Price - Averages.PRICE_ABBATTUTO) / Averages.PRICE_ABBATTUTO
+        ELSE
+        ((Mapping.PRICE / Mapping.MQ) - Averages.PRICE_ABBATTUTO_MQ) / Averages.PRICE_ABBATTUTO_MQ
+        END
+        as ABBATTIMENTO
+        , Mapping.* from Mapping join Averages ON
+        concat(Mapping.MICROZONE,"_", Mapping.RANGE) = Averages.MZ_RANGE
+        )Mapping_abbattuto on Mapping_abbattuto.ID = Opportunity.ID
+        WHERE Mapping_abbattuto.ID = Opportunity.ID and Mapping_abbattuto.PRICE <> Opportunity.PRICE
+        """
+    elif type == 'sqlite':
+        a = cursor.execute(
+        """
+        UPDATE Opportunity
+        SET 
+        DATA = (SELECT DATA FROM Mapping WHERE Opportunity.ID = Mapping.ID),
+        PRICE = (SELECT PRICE FROM Mapping WHERE Opportunity.ID = Mapping.ID),
+        PRICE_MQ = (SELECT PRICE/MQ FROM Mapping WHERE Opportunity.ID = Mapping.ID),
+        SCOSTAMENTO = (select ABBATTIMENTO from (select case when Averages.RANGE = '0_50' OR Averages.RANGE = '51_70' then (Mapping.Price - Averages.PRICE_ABBATTUTO) / Averages.PRICE_ABBATTUTO
+        ELSE
+        ((Mapping.PRICE / Mapping.MQ) - Averages.PRICE_ABBATTUTO_MQ) / Averages.PRICE_ABBATTUTO_MQ
+        END
+        as ABBATTIMENTO,Mapping.ID
+        from Mapping INNER JOIN  Averages ON 
+        Mapping.MICROZONE || "_" || Mapping.RANGE  = Averages.MZ_RANGE
+        )Mapping_abbattuto WHERE Mapping_abbattuto.ID = Opportunity.ID),
+        UPDATED = (SELECT CASE WHEN Opportunity.PRICE > Mapping.PRICE THEN 'RIBASSATO' WHEN Opportunity.PRICE < Mapping.PRICE THEN 'RIALZATO' ELSE FALSE END FROM Mapping where Mapping.ID = Opportunity.ID)
+        """
+        )
+    connection.commit()
+    connection.close()
+
+
+def markLostOpportuntiies(connection,type):
+    cursor = connection.cursor()
+    if type == 'mysql':
+        a = cursor.execute(
+            """
+            UPDATE Opportunity SET UPDATED = 'LOST OPP!' WHERE ID NOT IN (SELECT DISTINCT ID FROM MAPPING)
+            """
+        )
+    elif type == 'sqlite':
+        a = cursor.execute(
+            """
+            UPDATE Opportunity SET UPDATED = 'LOST OPP!' WHERE ID NOT IN (SELECT DISTINCT ID FROM MAPPING)
+            """
+        )
+    connection.commit()
+    connection.close()
+
 ##########################################################################
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
 DIRECTORY = os.environ.get("DIRECTORY")
@@ -680,40 +916,40 @@ output_timestamp = datetime.datetime.now().strftime("%Y%m%d")
 print(output_timestamp)
 path = ROOT_DIR+"\\IMMOBILIARE\\"
 
-if os.path.exists(path):
-    shutil.rmtree(path)
+# if os.path.exists(path):
+#     shutil.rmtree(path)
     
-if not os.path.exists(path):
-    os.mkdir(path)
+# if not os.path.exists(path):
+#     os.mkdir(path)
 
-with ThreadPoolExecutor() as executor:
-    for index, row in data.iterrows():
-        links = []
-        i = i + 1
-        path = ROOT_DIR +"\\IMMOBILIARE\\" + str(row['zone_code']) + \
-            "" + str(row['microzone_code']) + "\\"
-        print(path)
-        url = row['url']
-        links = get_links_immobiliare(url)
-        print(str(i) + " lista da link " + url)
-        print("totale links: " + str(len(links)))
-        j = 0
-        for s in links:
-            j = j + 1
-            futures.append(
-                executor.submit(get_data_immobiliare, s, path, str(j), row)
-            )
+# with ThreadPoolExecutor() as executor:
+#     for index, row in data.iterrows():
+#         links = []
+#         i = i + 1
+#         path = ROOT_DIR +"\\IMMOBILIARE\\" + str(row['zone_code']) + \
+#             "" + str(row['microzone_code']) + "\\"
+#         print(path)
+#         url = row['url']
+#         links = get_links_immobiliare(url)
+#         print(str(i) + " lista da link " + url)
+#         print("totale links: " + str(len(links)))
+#         j = 0
+#         for s in links:
+#             j = j + 1
+#             futures.append(
+#                 executor.submit(get_data_immobiliare, s, path, str(j), row)
+#             )
 
-end_time = time()
-elapsed_time = end_time - start_time
-print(f"Elapsed run time SCRAPING: {elapsed_time} seconds")
+# end_time = time()
+# elapsed_time = end_time - start_time
+# print(f"Elapsed run time SCRAPING: {elapsed_time} seconds")
 
 print("truncate")
 start_time = time()
 
 
-truncateSQLTable(connectToSQL(), 'Mapping','mysql')
-truncateSQLTable(connectToSQL(), 'Averages','mysql')
+truncateSQLTable(connectToSQL('mssql'), 'Mapping','mysql')
+truncateSQLTable(connectToSQL('mssql'), 'Averages','mysql')
 
 end_time = time()
 elapsed_time = end_time - start_time
@@ -737,32 +973,37 @@ for subdir, dirs, files in os.walk(ROOT_DIR+"\\IMMOBILIARE\\"):
 print("insertion")
 start_time = time()
 
-insertMappingToSQL(connectToSQL(), rows, 'mysql')
+insertMappingToSQL(connectToSQL('mssql'), rows, 'mysql')
 end_time = time()
 elapsed_time = end_time - start_time
 print(f"Elapsed run time INSERTION: {elapsed_time} seconds")
 
-deleted_rows = cleanAuctions(connectToSQL())
+deleted_rows = cleanAuctions(connectToSQL('mssql'))
 print("Sono state cancellati "+str(deleted_rows)+" records da aste o nuove costruzioni")
-deleted_rows = cleanZeroPrice(connectToSQL())
+deleted_rows = cleanZeroPrice(connectToSQL('mssql'))
 print("Sono state cancellati "+str(deleted_rows)+" records con price zero")
+deleted_rows = cleanZeroMQ(connectToSQL('mssql'))
+print("Sono state cancellati "+str(deleted_rows)+" records con mq zero")
 
 
-updateRangesMapping(connectToSQL(),"mysql")
-insertAveragesIfOccurs(connectToSQL(),"mysql")
-updateAverages(connectToSQL(),"mysql")
+updateRangesMapping(connectToSQL('mssql'),"mysql")
+insertAveragesIfOccurs(connectToSQL('mssql'),"mysql")
+updateAverages(connectToSQL('mssql'),"mysql")
 
-cleanOutOfRange(connectToSQL(),'mysql')
-updateAverages(connectToSQL(),"mysql")
-cleanOutOfRange(connectToSQL(),'mysql')
-updateAverages(connectToSQL(),"mysql")
+cleanOutOfRange(connectToSQL('mssql'),'mysql')
+updateAverages(connectToSQL('mssql'),"mysql")
+cleanOutOfRange(connectToSQL('mssql'),'mysql')
+updateAverages(connectToSQL('mssql'),"mysql")
 
-insertMappingStoryToSQL(connectToSQL(),"mysql")
-insertAveragesStoryToSQL(connectToSQL(),"mysql")
+insertMappingStoryToSQL(connectToSQL('mssql'),"mysql")
+insertAveragesStoryToSQL(connectToSQL('mssql'),"mysql")
 
-insertNewOpportunities(connectToSQL(),"mysql")
+insertNewOpportunities(connectToSQL('mssql'),"mysql")
 
-updateExistingOpportunities(connectToSQL(),"mysql")
+updateExistingOpportunities(connectToSQL('mssql'),"mysql")
+markLostOpportuntiies(connectToSQL('mssql'),"mysql")
+
+########################################################################################################################
 
 conn = connectToSQLite()
 
@@ -788,7 +1029,7 @@ if conn != None:
         `AUCTION` int(1) NOT NULL,
         `TOILET` int(1) NOT NULL,
         `DATA` varchar(10) DEFAULT NULL,
-        `PRICE` varchar(20) NOT NULL
+        `PRICE` varchar(20)
         );
         """
     )
@@ -828,11 +1069,11 @@ if conn != None:
         `AUCTION` int(1) NOT NULL,
         `TOILET` int(11) NOT NULL,
         `DATA` varchar(10) DEFAULT NULL,
-        `PRICE` varchar(20) NOT NULL,
+        `PRICE` varchar(20),
         `PRICE_MQ` varchar(20) NULL,
         `SCOSTAMENTO` float DEFAULT NULL,
         `AGENZIA` varchar(50) DEFAULT NULL,
-        `UPDATED` varchar(50) NOT NULL,
+        `UPDATED` varchar(50) NULL,
         `IS_DELETED` tinyint(1) NOT NULL
         );
         """
@@ -875,7 +1116,7 @@ if conn != None:
     `AUCTION` int(1) NOT NULL,
     `TOILET` int(11) NOT NULL,
     `DATA` varchar(10) DEFAULT NULL,
-    `PRICE` varchar(20) NOT NULL
+    `PRICE` varchar(20)
     );
     """
     )
@@ -919,6 +1160,7 @@ insertNewOpportunities(connectToSQLite(),"sqlite")
 
 
 updateExistingOpportunities(connectToSQLite(),"sqlite")
+markLostOpportuntiies(connectToSQLite(),"sqlite")
 conn.close()
 
 
