@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import csv
 import json
-from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import ThreadPoolExecutor, wait, as_completed   
 import datetime
 from time import sleep, time
 from datetime import date
@@ -13,6 +13,9 @@ import pyodbc
 from models.models import Mapping
 from utils.sqlite import create
 import shutil
+import string
+import random
+
 
 load_dotenv()
 
@@ -42,8 +45,11 @@ def get_links_immobiliare(web_addr, page=1):
 
 
 def get_data_immobiliare(web_addr, path, name, origin):
-    if not os.path.exists(path):
-        os.mkdir(path)
+    try:
+        if not os.path.exists(path):
+            os.mkdir(path)
+    except:
+        pass
 
     r = connect(web_addr)
     payload = r.find(id='js-hydration')
@@ -72,9 +78,18 @@ def get_data_immobiliare(web_addr, path, name, origin):
     df = dt.set_index('attribute').to_dict()
     json_object.update({'details': df})
 
-    with open(path + "\\" + name + '.json', 'w') as outfile:
-        json.dump(json_object, outfile)
-
+    try:
+        if not os.path.exists(path + "\\" + name + '.json'):
+            with open(path + "\\" + name + '.json', 'w') as outfile:
+                json.dump(json_object, outfile)
+        else:
+            with open(path + "\\" + ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(5)) + '.json', 'w') as outfile:
+                json.dump(json_object, outfile)
+    except:
+        print("exception")
+        with open(path + "\\" + ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(5)) + '.json', 'w') as outfile:
+            json.dump(json_object, outfile)
+    return name
 
 def connectToSQL(type):
     DB_SERVER = os.environ.get("DB_SERVER")
@@ -94,7 +109,7 @@ def connectToSQL(type):
             DB_PASSWORD)
     else:
         cnxn = pyodbc.connect(
-            'Driver={ODBC Driver 13 for SQL Server};Server=tcp:'+
+            'Driver={ODBC Driver 17 for SQL Server};Server=tcp:'+
             DB_SERVER + "," + DB_PORT + ';DATABASE=' +
             DB_NAME +
             ';UID=' +
@@ -145,6 +160,10 @@ def cleanDataImmobiliare(json_object):
 
     if mq != "N.A.":
         mq = mq.replace(",",".")
+        if mq.find(".")!=-1:
+            mq_tmp = mq.split(".")
+            mq = mq_tmp[0]
+        
 
     range = 'tbl'
 
@@ -159,7 +178,7 @@ def cleanDataImmobiliare(json_object):
     #print(json_object["details"])
 
     floor = "N.A."
-    reason = ""
+
     try:
         # must be surrounded by try / except
         if len(json_object["listing"]["properties"][0]
@@ -168,16 +187,12 @@ def cleanDataImmobiliare(json_object):
                 ["surfaceConstitutionElements"][0]["floor"]).isdigit():
                 floor = str(json_object["listing"]["properties"][0][
                             "surfaceConstitution"]["surfaceConstitutionElements"][0]["floor"])
-                reason = "trovato floor"
             elif json_object["listing"]["properties"][0]["surfaceConstitution"]["surfaceConstitutionElements"][0]["floor"] == "Piano Rialzato":
                 floor = "Piano Rialzato"
-                reason = "rialzato"
             elif json_object["listing"]["properties"][0]["surfaceConstitution"]["surfaceConstitutionElements"][0]["floor"] == "Piano Terra":
                 floor = "Piano Terra"
-                reason = "terra"
             elif json_object["listing"]["properties"][0]["surfaceConstitution"]["surfaceConstitutionElements"][0]["floor"] == "Attico":
                 floor = "Attico"
-                reason = "attico"
         if (floor == "N.A."):
             try:
                 floor = str(json_object["details"]["value"]["piano"])
@@ -187,7 +202,6 @@ def cleanDataImmobiliare(json_object):
         if (floor == "N.A."):
             if json_object["listing"]["properties"][0]["description"].find("piano") != -1:
                 txt = json_object["listing"]["properties"][0]["description"].split("piano")[0]
-                reason = ("trovato da desc "+txt)
                 if (txt.find("primo")>-1) or (txt.find("1\u00b0")>-1) or (txt.find("1°")>-1):
                     floor = "1"
                 elif (txt.find("secondo")>-1) or (txt.find("2\u00b0")>-1) or (txt.find("2°")>-1):
@@ -212,16 +226,13 @@ def cleanDataImmobiliare(json_object):
                     floor = "Attico"    
                 elif (txt.find("piano terra")>-1):
                     floor = "Piano Terra"
-                    reason = ("TERRA trovato da desc "+txt)
                 elif (txt.find("piano rialzato")>-1):
                     floor = "Piano Rialzato"
 
             else:
                 floor = "N.A."
-                reason = 'flop'
     except:
         floor = "N.A."
-        reason = 'flop'
         pass
 
     floor = floor.replace("° piano, con ascensore","")
@@ -916,33 +927,34 @@ output_timestamp = datetime.datetime.now().strftime("%Y%m%d")
 print(output_timestamp)
 path = ROOT_DIR+"\\IMMOBILIARE\\"
 
-# if os.path.exists(path):
-#     shutil.rmtree(path)
+if os.path.exists(path):
+    shutil.rmtree(path)
     
-# if not os.path.exists(path):
-#     os.mkdir(path)
+if not os.path.exists(path):
+    os.mkdir(path)
 
-# with ThreadPoolExecutor() as executor:
-#     for index, row in data.iterrows():
-#         links = []
-#         i = i + 1
-#         path = ROOT_DIR +"\\IMMOBILIARE\\" + str(row['zone_code']) + \
-#             "" + str(row['microzone_code']) + "\\"
-#         print(path)
-#         url = row['url']
-#         links = get_links_immobiliare(url)
-#         print(str(i) + " lista da link " + url)
-#         print("totale links: " + str(len(links)))
-#         j = 0
-#         for s in links:
-#             j = j + 1
-#             futures.append(
-#                 executor.submit(get_data_immobiliare, s, path, str(j), row)
-#             )
+with ThreadPoolExecutor(max_workers=10) as executor:
+    for index, row in data.iterrows():
+        links = []
+        i = i + 1
+        path = ROOT_DIR +"\\IMMOBILIARE\\" + str(row['zone_code']) + \
+            "" + str(row['microzone_code']) + "\\"
+        print(path)
+        url = row['url']
+        links = get_links_immobiliare(url)
+        print(str(i) + " lista da link " + url)
+        print("totale links: " + str(len(links)))
+        j = 0
+        for s in links:
+            j = j + 1
+            futures.append(
+                executor.submit(get_data_immobiliare, s, path, str(j), row)
+            )
 
-# end_time = time()
-# elapsed_time = end_time - start_time
-# print(f"Elapsed run time SCRAPING: {elapsed_time} seconds")
+
+end_time = time()
+elapsed_time = end_time - start_time
+print(f"Elapsed run time SCRAPING: {elapsed_time} seconds")
 
 print("truncate")
 start_time = time()

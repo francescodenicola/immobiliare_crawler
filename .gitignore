@@ -2,3 +2,4 @@
 /__pycache__
 /*/__pycache__
 /utils/sqlite/__pycache__
+.env
