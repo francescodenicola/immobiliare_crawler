@@ -62,6 +62,7 @@ def scrapeNow(request: Request,background_tasks: BackgroundTasks):
 
 @app.post("/scrape/")
 def scrape(background_tasks: BackgroundTasks):
+    print("ok")
     background_tasks.add_task(crawler.launch)
     return {"message": "Notification sent in the background"}
 
