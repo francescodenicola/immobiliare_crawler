@@ -5,6 +5,9 @@ from loguru import logger
 import datetime, time
 from fastapi import BackgroundTasks, FastAPI,Request, Form
 import uvicorn
+import crawler as crawler
+from multiprocessing import Process
+
 # configure logger
 logger.add("static/job.log", format="{time} - {message}")
 
@@ -29,6 +32,8 @@ def test_logger_window():
         # Create empty job.log, old logging will be deleted
         open("static/job.log", 'w').close()
 
+
+
 @app.get("/")
 def root(request: Request):
     #return render_template('index.html')
@@ -40,7 +45,7 @@ def stream(request: Request):
     return StreamingResponse(test_logger_window(), media_type="text/event-stream")
 
 @app.get("/scrapeNow")
-def scrapeNow(request: Request):
+def scrapeNow(request: Request,background_tasks: BackgroundTasks):
     f = open("status.lock", "r")
     a = f.read()
     f.close()
@@ -50,13 +55,14 @@ def scrapeNow(request: Request):
         f.truncate(0)
         f.write("IDLE")
         f.close()
+        background_tasks.add_task(crawler.launch)
         return templates.TemplateResponse(name='scrapeNow.html',context={'request': request})
     else:
         return RedirectResponse(url='/')
 
 @app.post("/scrape/")
 def scrape(background_tasks: BackgroundTasks):
-    background_tasks.add_task(sleeping, message="some notification")
+    #background_tasks.add_task(crawler.launch)
     return {"message": "Notification sent in the background"}
 
 
