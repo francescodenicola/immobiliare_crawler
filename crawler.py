@@ -79,15 +79,20 @@ def get_data_immobiliare(web_addr, path, name, origin):
     json_object.update({'details': df})
 
     try:
-        if not os.path.exists(path + "\\" + name + '.json'):
-            with open(path + "\\" + name + '.json', 'w') as outfile:
+        # if not os.path.exists(path + "\\" + name + '.json'):
+        if not os.path.exists(os.path.join(path,name + '.json')):
+            # with open(path + "\\" + name + '.json', 'w') as outfile:
+            with open(os.path.join(path,name + '.json'), 'w') as outfile:
                 json.dump(json_object, outfile)
         else:
-            with open(path + "\\" + ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(5)) + '.json', 'w') as outfile:
+            # with open(path + "\\" + ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(5)) + '.json', 'w') as outfile:
+            with open(os.path.join(path, ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(5))) + '.json', 'w') as outfile:
                 json.dump(json_object, outfile)
-    except:
+    except Exception as e: 
         print("exception")
-        with open(path + "\\" + ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(5)) + '.json', 'w') as outfile:
+        print(e)
+        # with open(path + "\\" + ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(5)) + '.json', 'w') as outfile:
+        with open(os.path.join(path, ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(5))) + '.json', 'w') as outfile:
             json.dump(json_object, outfile)
     return name
 
@@ -119,7 +124,8 @@ def connectToSQL(type):
     return cnxn
 
 def connectToSQLite():
-    conn = create.create_connection(ROOT_DIR+"\\utils\\sqlite\\immobiliare_crawler.db")
+    # conn = create.create_connection(ROOT_DIR+"\\utils\\sqlite\\immobiliare_crawler.db")
+    conn = create.create_connection(os.path.join(ROOT_DIR,"utils","sqlite","immobiliare_crawler.db"))
     return conn
 
 def cleanDataImmobiliare(json_object):
@@ -928,7 +934,8 @@ def launch():
     #output_timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     output_timestamp = datetime.datetime.now().strftime("%Y%m%d")
     print(output_timestamp)
-    path = ROOT_DIR+"\\IMMOBILIARE\\"
+    # path = ROOT_DIR+"\\IMMOBILIARE\\"
+    path = os.path.join(ROOT_DIR,"IMMOBILIARE")
 
     print(path)
 
@@ -942,8 +949,9 @@ def launch():
         for index, row in data.iterrows():
             links = []
             i = i + 1
-            path = ROOT_DIR +"\\IMMOBILIARE\\" + str(row['zone_code']) + \
-                "" + str(row['microzone_code']) + "\\"
+            # path = ROOT_DIR +"\\IMMOBILIARE\\" + str(row['zone_code']) + \
+                # "" + str(row['microzone_code']) + "\\"
+            path = os.path.join(ROOT_DIR,"IMMOBILIARE",str(row['zone_code']) + "" + str(row['microzone_code']))
             print(path)
             url = row['url']
             links = get_links_immobiliare(url)
@@ -973,9 +981,9 @@ def launch():
     print(f"Elapsed run time TRUNCATE: {elapsed_time} seconds")
 
 
-
+    path_to_walk = os.path.join(ROOT_DIR,"IMMOBILIARE")
     rows = []
-    for subdir, dirs, files in os.walk(ROOT_DIR+"\\IMMOBILIARE\\"):
+    for subdir, dirs, files in os.walk(path_to_walk):
         for filename in files:
             filepath = subdir + os.sep + filename
             if filepath.endswith(".json"):
