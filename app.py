@@ -55,14 +55,14 @@ def scrapeNow(request: Request,background_tasks: BackgroundTasks):
         f.truncate(0)
         f.write("IDLE")
         f.close()
-        background_tasks.add_task(crawler.launch)
+        #background_tasks.add_task(crawler.launch)
         return templates.TemplateResponse(name='scrapeNow.html',context={'request': request})
     else:
         return RedirectResponse(url='/')
 
 @app.post("/scrape/")
 def scrape(background_tasks: BackgroundTasks):
-    #background_tasks.add_task(crawler.launch)
+    background_tasks.add_task(crawler.launch)
     return {"message": "Notification sent in the background"}
 
 
