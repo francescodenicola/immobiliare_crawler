@@ -58,25 +58,29 @@ def get_data_immobiliare(web_addr, path, name, origin):
         {'microzone': str(origin['zone_code']) + "" + str(origin['microzone_code'])})
     json_object.update({'url': str(web_addr)})
 
-    #inserisco in fondo tabella immobiliare da frontend, per doublecheck e pulizia
-    details = r.find("dl", {"class": "im-features__list"})
-    dt = pd.DataFrame()
-    cleaned_id_text = []
-    for i in details.find_all('dt'):
-        attribute = i.text
-        attribute = attribute.replace("\n                    ","")
-        attribute = attribute.replace("                ","")
-        cleaned_id_text.append(attribute)
-    cleaned_id__attrb_text = []
-    for i in details.find_all('dd'):
-        value = i.text
-        value = value.replace("\n                    ","")
-        value = value.replace("                ","")
-        cleaned_id__attrb_text.append(value)
-    dt['attribute'] = cleaned_id_text
-    dt['value'] = cleaned_id__attrb_text
-    df = dt.set_index('attribute').to_dict()
-    json_object.update({'details': df})
+    try:
+        #inserisco in fondo tabella immobiliare da frontend, per doublecheck e pulizia
+        details = r.find("dl", {"class": "im-features__list"})
+        dt = pd.DataFrame()
+        cleaned_id_text = []
+        for i in details.find_all('dt'):
+            attribute = i.text
+            attribute = attribute.replace("\n                    ","")
+            attribute = attribute.replace("                ","")
+            cleaned_id_text.append(attribute)
+        cleaned_id__attrb_text = []
+        for i in details.find_all('dd'):
+            value = i.text
+            value = value.replace("\n                    ","")
+            value = value.replace("                ","")
+            cleaned_id__attrb_text.append(value)
+        dt['attribute'] = cleaned_id_text
+        dt['value'] = cleaned_id__attrb_text
+        df = dt.set_index('attribute').to_dict()
+        json_object.update({'details': df})
+    except Exception as e: 
+        print("details wrong or missing")
+        print(e) 
 
     try:
         # if not os.path.exists(path + "\\" + name + '.json'):
@@ -946,41 +950,41 @@ def launch():
     if not os.path.exists(path):
         os.mkdir(path)
 
-    # with ThreadPoolExecutor(max_workers=2) as executor:
-    #     for index, row in data.iterrows():
-    #         links = []
-    #         i = i + 1
-    #         # path = ROOT_DIR +"\\IMMOBILIARE\\" + str(row['zone_code']) + \
-    #             # "" + str(row['microzone_code']) + "\\"
-    #         path = os.path.join(ROOT_DIR,"IMMOBILIARE",str(row['zone_code']) + "" + str(row['microzone_code']))
-    #         print(path)
-    #         url = row['url']
-    #         links = get_links_immobiliare(url)
-    #         print(str(i) + " lista da link " + url)
-    #         print("totale links: " + str(len(links)))
-    #         j = 0
-    #         for s in links:
-    #             j = j + 1
-    #             futures.append(
-    #                 executor.submit(get_data_immobiliare, s, path, str(j), row)
-    #             )
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        for index, row in data.iterrows():
+            links = []
+            i = i + 1
+            # path = ROOT_DIR +"\\IMMOBILIARE\\" + str(row['zone_code']) + \
+                # "" + str(row['microzone_code']) + "\\"
+            path = os.path.join(ROOT_DIR,"IMMOBILIARE",str(row['zone_code']) + "" + str(row['microzone_code']))
+            print(path)
+            url = row['url']
+            links = get_links_immobiliare(url)
+            print(str(i) + " lista da link " + url)
+            print("totale links: " + str(len(links)))
+            j = 0
+            for s in links:
+                j = j + 1
+                futures.append(
+                    executor.submit(get_data_immobiliare, s, path, str(j), row)
+                )
     
-    for index, row in data.iterrows():
-        links = []
-        i = i + 1
-        # path = ROOT_DIR +"\\IMMOBILIARE\\" + str(row['zone_code']) + \
-            # "" + str(row['microzone_code']) + "\\"
-        path = os.path.join(ROOT_DIR,"IMMOBILIARE",str(row['zone_code']) + "" + str(row['microzone_code']))
-        print(path)
-        url = row['url']
-        links = get_links_immobiliare(url)
-        print(str(i) + " lista da link " + url)
-        print("totale links: " + str(len(links)))
-        j = 0
-        for s in links:
-            j = j + 1
-            get_data_immobiliare(s, path, str(j), row)
-            
+    # for index, row in data.iterrows():
+    #     links = []
+    #     i = i + 1
+    #     # path = ROOT_DIR +"\\IMMOBILIARE\\" + str(row['zone_code']) + \
+    #         # "" + str(row['microzone_code']) + "\\"
+    #     path = os.path.join(ROOT_DIR,"IMMOBILIARE",str(row['zone_code']) + "" + str(row['microzone_code']))
+    #     print(path)
+    #     url = row['url']
+    #     links = get_links_immobiliare(url)
+    #     print(str(i) + " lista da link " + url)
+    #     print("totale links: " + str(len(links)))
+    #     j = 0
+    #     for s in links:
+    #         j = j + 1
+    #         get_data_immobiliare(s, path, str(j), row)
+
 
     end_time = time()
     elapsed_time = end_time - start_time
@@ -990,220 +994,220 @@ def launch():
     start_time = time()
 
 
-    truncateSQLTable(connectToSQL('mssql'), 'Mapping','mysql')
-    truncateSQLTable(connectToSQL('mssql'), 'Averages','mysql')
+    # truncateSQLTable(connectToSQL('mssql'), 'Mapping','mysql')
+    # truncateSQLTable(connectToSQL('mssql'), 'Averages','mysql')
 
-    end_time = time()
-    elapsed_time = end_time - start_time
-    print(f"Elapsed run time TRUNCATE: {elapsed_time} seconds")
-
-
-    path_to_walk = os.path.join(ROOT_DIR,"IMMOBILIARE")
-    rows = []
-    for subdir, dirs, files in os.walk(path_to_walk):
-        for filename in files:
-            filepath = subdir + os.sep + filename
-            if filepath.endswith(".json"):
-                # print(filepath)
-                f = open(filepath)
-                d = json.load(f)
-                elem = cleanDataImmobiliare(d)
-                if elem != None:
-                    rows.append(elem)
+    # end_time = time()
+    # elapsed_time = end_time - start_time
+    # print(f"Elapsed run time TRUNCATE: {elapsed_time} seconds")
 
 
-    print("insertion")
-    start_time = time()
-
-    insertMappingToSQL(connectToSQL('mssql'), rows, 'mysql')
-    end_time = time()
-    elapsed_time = end_time - start_time
-    print(f"Elapsed run time INSERTION: {elapsed_time} seconds")
-
-    deleted_rows = cleanAuctions(connectToSQL('mssql'))
-    print("Sono state cancellati "+str(deleted_rows)+" records da aste o nuove costruzioni")
-    deleted_rows = cleanZeroPrice(connectToSQL('mssql'))
-    print("Sono state cancellati "+str(deleted_rows)+" records con price zero")
-    deleted_rows = cleanZeroMQ(connectToSQL('mssql'))
-    print("Sono state cancellati "+str(deleted_rows)+" records con mq zero")
+    # path_to_walk = os.path.join(ROOT_DIR,"IMMOBILIARE")
+    # rows = []
+    # for subdir, dirs, files in os.walk(path_to_walk):
+    #     for filename in files:
+    #         filepath = subdir + os.sep + filename
+    #         if filepath.endswith(".json"):
+    #             # print(filepath)
+    #             f = open(filepath)
+    #             d = json.load(f)
+    #             elem = cleanDataImmobiliare(d)
+    #             if elem != None:
+    #                 rows.append(elem)
 
 
-    updateRangesMapping(connectToSQL('mssql'),"mysql")
-    insertAveragesIfOccurs(connectToSQL('mssql'),"mysql")
-    updateAverages(connectToSQL('mssql'),"mysql")
+    # print("insertion")
+    # start_time = time()
 
-    cleanOutOfRange(connectToSQL('mssql'),'mysql')
-    updateAverages(connectToSQL('mssql'),"mysql")
-    cleanOutOfRange(connectToSQL('mssql'),'mysql')
-    updateAverages(connectToSQL('mssql'),"mysql")
+    # insertMappingToSQL(connectToSQL('mssql'), rows, 'mysql')
+    # end_time = time()
+    # elapsed_time = end_time - start_time
+    # print(f"Elapsed run time INSERTION: {elapsed_time} seconds")
 
-    insertMappingStoryToSQL(connectToSQL('mssql'),"mysql")
-    insertAveragesStoryToSQL(connectToSQL('mssql'),"mysql",datetime.datetime.now().strftime("%Y%m%d"))
-
-    insertNewOpportunities(connectToSQL('mssql'),"mysql")
-
-    updateExistingOpportunities(connectToSQL('mssql'),"mysql")
-    markLostOpportuntiies(connectToSQL('mssql'),"mysql")
-
-    ########################################################################################################################
-
-    conn = connectToSQLite()
+    # deleted_rows = cleanAuctions(connectToSQL('mssql'))
+    # print("Sono state cancellati "+str(deleted_rows)+" records da aste o nuove costruzioni")
+    # deleted_rows = cleanZeroPrice(connectToSQL('mssql'))
+    # print("Sono state cancellati "+str(deleted_rows)+" records con price zero")
+    # deleted_rows = cleanZeroMQ(connectToSQL('mssql'))
+    # print("Sono state cancellati "+str(deleted_rows)+" records con mq zero")
 
 
+    # updateRangesMapping(connectToSQL('mssql'),"mysql")
+    # insertAveragesIfOccurs(connectToSQL('mssql'),"mysql")
+    # updateAverages(connectToSQL('mssql'),"mysql")
 
-    if conn != None:
-        c = conn.cursor()
-        c.execute(
-            """
-            CREATE TABLE IF NOT EXISTS `Mapping` (
-            `COUNTRY` varchar(50) NOT NULL,
-            `REGION` varchar(50) NOT NULL,
-            `PROVINCE` varchar(50) NOT NULL,
-            `CITY` varchar(50) NOT NULL,
-            `MICROZONE` varchar(10) NOT NULL,
-            `ID` varchar(50) NOT NULL,
-            `URL` varchar(200) NOT NULL,
-            `AGENCY` varchar(100) DEFAULT NULL,
-            `ADDRESS` varchar(100) NOT NULL,
-            `MQ` varchar(10) DEFAULT NULL,
-            `RANGE` varchar(50) NOT NULL,
-            `FLOOR` varchar(100) NOT NULL,
-            `AUCTION` int(1) NOT NULL,
-            `TOILET` int(1) NOT NULL,
-            `DATA` varchar(10) DEFAULT NULL,
-            `PRICE` varchar(20)
-            );
-            """
-        )
-        c.execute(
-            """
-            CREATE TABLE IF NOT EXISTS `Averages` (
-            `MZ_RANGE` varchar(20) NOT NULL,
-            `MZ` varchar(10) NOT NULL,
-            `RANGE` varchar(10) NOT NULL,
-            `ABBATTIMENTO` float NOT NULL,
-            `AVG_PREZZO` int(11) DEFAULT NULL,
-            `AVG_PREZZO_MQ` int(11) DEFAULT NULL,
-            `PRICE_ABBATTUTO` int(11) DEFAULT NULL,
-            `PRICE_ABBATTUTO_MQ` int(11) DEFAULT NULL,
-            `CNT_MZ` int(11) DEFAULT NULL
-            );
-            """
-        )
-        c.execute(
-            """
-            CREATE TABLE IF NOT EXISTS `Opportunity` (
-            `OWNER` varchar(50) DEFAULT NULL,
-            `DATA_OPP` varchar(10) DEFAULT NULL,
-            `STATO_OPP` varchar(50) DEFAULT NULL,
-            `COUNTRY` varchar(50) NOT NULL,
-            `REGION` varchar(50) NOT NULL,
-            `PROVINCE` varchar(50) NOT NULL,
-            `CITY` varchar(50) NOT NULL,
-            `MICROZONE` varchar(10) NOT NULL,
-            `ID` varchar(50) NOT NULL,
-            `URL` varchar(200) NOT NULL,
-            `ADDRESS` varchar(100) NOT NULL,
-            `MQ` varchar(10) DEFAULT NULL,
-            `RANGE` varchar(50) NOT NULL,
-            `MZ_RANGE` varchar(20) NOT NULL,
-            `PIANO` varchar(100) NOT NULL,
-            `AUCTION` int(1) NOT NULL,
-            `TOILET` int(11) NOT NULL,
-            `DATA` varchar(10) DEFAULT NULL,
-            `PRICE` varchar(20),
-            `PRICE_MQ` varchar(20) NULL,
-            `SCOSTAMENTO` float DEFAULT NULL,
-            `AGENZIA` varchar(50) DEFAULT NULL,
-            `UPDATED` varchar(50) NULL,
-            `IS_DELETED` tinyint(1) NOT NULL
-            );
-            """
-        )
-        c.execute(
-        """
-        CREATE TABLE IF NOT EXISTS `Ranges` (
-            `MIN` int(11) NOT NULL,
-            `MAX` int(11) NOT NULL,
-            `RANGE` varchar(10) NOT NULL,
-            `ABBATTIMENTO` float NOT NULL
-            );
-        """
-        )
-        c.execute(
-        """
-        INSERT INTO `ranges` (`MIN`, `MAX`, `RANGE`, `ABBATTIMENTO`) VALUES
-        (0, 50, '0_50', 0.8),
-        (51, 70, '51_70', 0.8),
-        (71, 90, '71_90', 0.7),
-        (91, 110, '91_110', 0.7),
-        (111, 500, '111_500', 0.7);
-        """
-        )
-        c.execute(
-        """
-        CREATE TABLE IF NOT EXISTS `Mapping_story` (
-        `COUNTRY` varchar(50) NOT NULL,
-        `REGION` varchar(50) NOT NULL,
-        `PROVINCE` varchar(50) NOT NULL,
-        `CITY` varchar(50) NOT NULL,
-        `MICROZONE` varchar(10) NOT NULL,
-        `ID` varchar(50) NOT NULL,
-        `URL` varchar(200) NOT NULL,
-        `AGENCY` varchar(100) DEFAULT NULL,
-        `ADDRESS` varchar(100) NOT NULL,
-        `MQ` varchar(10) DEFAULT NULL,
-        `RANGE` varchar(50) NOT NULL,
-        `FLOOR` varchar(100) DEFAULT NULL,
-        `AUCTION` int(1) NOT NULL,
-        `TOILET` int(11) NOT NULL,
-        `DATA` varchar(10) DEFAULT NULL,
-        `PRICE` varchar(20)
-        );
-        """
-        )
-        c.execute(
-            """
-            CREATE TABLE IF NOT EXISTS `Averages_story` (
-            `MZ_RANGE` varchar(20) NOT NULL,
-            `MZ` varchar(10) NOT NULL,
-            `RANGE` varchar(10) NOT NULL,
-            `ABBATTIMENTO` float NOT NULL,
-            `AVG_PREZZO` int(11) DEFAULT NULL,
-            `AVG_PREZZO_MQ` int(11) DEFAULT NULL,
-            `PRICE_ABBATTUTO` int(11) DEFAULT NULL,
-            `PRICE_ABBATTUTO_MQ` int(11) DEFAULT NULL,
-            `CNT_MZ` int(11) DEFAULT NULL,
-            `DATA` varchar(10) DEFAULT NULL
-            );
-            """
-        )
-    conn.commit()
+    # cleanOutOfRange(connectToSQL('mssql'),'mysql')
+    # updateAverages(connectToSQL('mssql'),"mysql")
+    # cleanOutOfRange(connectToSQL('mssql'),'mysql')
+    # updateAverages(connectToSQL('mssql'),"mysql")
 
-    truncateSQLTable(connectToSQLite(), 'Mapping','sqlite')
-    truncateSQLTable(connectToSQLite(), 'Averages','sqlite')
+    # insertMappingStoryToSQL(connectToSQL('mssql'),"mysql")
+    # insertAveragesStoryToSQL(connectToSQL('mssql'),"mysql",datetime.datetime.now().strftime("%Y%m%d"))
 
-    insertMappingToSQL(connectToSQLite(), rows, 'sqlite')
-    cleanAuctions(connectToSQLite())
-    cleanZeroPrice(connectToSQLite())
-    updateRangesMapping(connectToSQLite(),"sqlite")
-    insertAveragesIfOccurs(connectToSQLite(),"sqlite")
-    updateAverages(connectToSQLite(),"sqlite")
+    # insertNewOpportunities(connectToSQL('mssql'),"mysql")
 
-    cleanOutOfRange(connectToSQLite(),'sqlite')
-    updateAverages(connectToSQLite(),"sqlite")
-    cleanOutOfRange(connectToSQLite(),'sqlite')
-    updateAverages(connectToSQLite(),"sqlite")
+    # updateExistingOpportunities(connectToSQL('mssql'),"mysql")
+    # markLostOpportuntiies(connectToSQL('mssql'),"mysql")
 
-    insertMappingStoryToSQL(connectToSQLite(),"sqlite")
-    insertAveragesStoryToSQL(connectToSQLite(),"sqlite",datetime.datetime.now().strftime("%Y%m%d"))
+    # ########################################################################################################################
 
-    insertNewOpportunities(connectToSQLite(),"sqlite")
+    # conn = connectToSQLite()
 
 
-    updateExistingOpportunities(connectToSQLite(),"sqlite")
-    markLostOpportuntiies(connectToSQLite(),"sqlite")
-    conn.close()
+
+    # if conn != None:
+    #     c = conn.cursor()
+    #     c.execute(
+    #         """
+    #         CREATE TABLE IF NOT EXISTS `Mapping` (
+    #         `COUNTRY` varchar(50) NOT NULL,
+    #         `REGION` varchar(50) NOT NULL,
+    #         `PROVINCE` varchar(50) NOT NULL,
+    #         `CITY` varchar(50) NOT NULL,
+    #         `MICROZONE` varchar(10) NOT NULL,
+    #         `ID` varchar(50) NOT NULL,
+    #         `URL` varchar(200) NOT NULL,
+    #         `AGENCY` varchar(100) DEFAULT NULL,
+    #         `ADDRESS` varchar(100) NOT NULL,
+    #         `MQ` varchar(10) DEFAULT NULL,
+    #         `RANGE` varchar(50) NOT NULL,
+    #         `FLOOR` varchar(100) NOT NULL,
+    #         `AUCTION` int(1) NOT NULL,
+    #         `TOILET` int(1) NOT NULL,
+    #         `DATA` varchar(10) DEFAULT NULL,
+    #         `PRICE` varchar(20)
+    #         );
+    #         """
+    #     )
+    #     c.execute(
+    #         """
+    #         CREATE TABLE IF NOT EXISTS `Averages` (
+    #         `MZ_RANGE` varchar(20) NOT NULL,
+    #         `MZ` varchar(10) NOT NULL,
+    #         `RANGE` varchar(10) NOT NULL,
+    #         `ABBATTIMENTO` float NOT NULL,
+    #         `AVG_PREZZO` int(11) DEFAULT NULL,
+    #         `AVG_PREZZO_MQ` int(11) DEFAULT NULL,
+    #         `PRICE_ABBATTUTO` int(11) DEFAULT NULL,
+    #         `PRICE_ABBATTUTO_MQ` int(11) DEFAULT NULL,
+    #         `CNT_MZ` int(11) DEFAULT NULL
+    #         );
+    #         """
+    #     )
+    #     c.execute(
+    #         """
+    #         CREATE TABLE IF NOT EXISTS `Opportunity` (
+    #         `OWNER` varchar(50) DEFAULT NULL,
+    #         `DATA_OPP` varchar(10) DEFAULT NULL,
+    #         `STATO_OPP` varchar(50) DEFAULT NULL,
+    #         `COUNTRY` varchar(50) NOT NULL,
+    #         `REGION` varchar(50) NOT NULL,
+    #         `PROVINCE` varchar(50) NOT NULL,
+    #         `CITY` varchar(50) NOT NULL,
+    #         `MICROZONE` varchar(10) NOT NULL,
+    #         `ID` varchar(50) NOT NULL,
+    #         `URL` varchar(200) NOT NULL,
+    #         `ADDRESS` varchar(100) NOT NULL,
+    #         `MQ` varchar(10) DEFAULT NULL,
+    #         `RANGE` varchar(50) NOT NULL,
+    #         `MZ_RANGE` varchar(20) NOT NULL,
+    #         `PIANO` varchar(100) NOT NULL,
+    #         `AUCTION` int(1) NOT NULL,
+    #         `TOILET` int(11) NOT NULL,
+    #         `DATA` varchar(10) DEFAULT NULL,
+    #         `PRICE` varchar(20),
+    #         `PRICE_MQ` varchar(20) NULL,
+    #         `SCOSTAMENTO` float DEFAULT NULL,
+    #         `AGENZIA` varchar(50) DEFAULT NULL,
+    #         `UPDATED` varchar(50) NULL,
+    #         `IS_DELETED` tinyint(1) NOT NULL
+    #         );
+    #         """
+    #     )
+    #     c.execute(
+    #     """
+    #     CREATE TABLE IF NOT EXISTS `Ranges` (
+    #         `MIN` int(11) NOT NULL,
+    #         `MAX` int(11) NOT NULL,
+    #         `RANGE` varchar(10) NOT NULL,
+    #         `ABBATTIMENTO` float NOT NULL
+    #         );
+    #     """
+    #     )
+    #     c.execute(
+    #     """
+    #     INSERT INTO `ranges` (`MIN`, `MAX`, `RANGE`, `ABBATTIMENTO`) VALUES
+    #     (0, 50, '0_50', 0.8),
+    #     (51, 70, '51_70', 0.8),
+    #     (71, 90, '71_90', 0.7),
+    #     (91, 110, '91_110', 0.7),
+    #     (111, 500, '111_500', 0.7);
+    #     """
+    #     )
+    #     c.execute(
+    #     """
+    #     CREATE TABLE IF NOT EXISTS `Mapping_story` (
+    #     `COUNTRY` varchar(50) NOT NULL,
+    #     `REGION` varchar(50) NOT NULL,
+    #     `PROVINCE` varchar(50) NOT NULL,
+    #     `CITY` varchar(50) NOT NULL,
+    #     `MICROZONE` varchar(10) NOT NULL,
+    #     `ID` varchar(50) NOT NULL,
+    #     `URL` varchar(200) NOT NULL,
+    #     `AGENCY` varchar(100) DEFAULT NULL,
+    #     `ADDRESS` varchar(100) NOT NULL,
+    #     `MQ` varchar(10) DEFAULT NULL,
+    #     `RANGE` varchar(50) NOT NULL,
+    #     `FLOOR` varchar(100) DEFAULT NULL,
+    #     `AUCTION` int(1) NOT NULL,
+    #     `TOILET` int(11) NOT NULL,
+    #     `DATA` varchar(10) DEFAULT NULL,
+    #     `PRICE` varchar(20)
+    #     );
+    #     """
+    #     )
+    #     c.execute(
+    #         """
+    #         CREATE TABLE IF NOT EXISTS `Averages_story` (
+    #         `MZ_RANGE` varchar(20) NOT NULL,
+    #         `MZ` varchar(10) NOT NULL,
+    #         `RANGE` varchar(10) NOT NULL,
+    #         `ABBATTIMENTO` float NOT NULL,
+    #         `AVG_PREZZO` int(11) DEFAULT NULL,
+    #         `AVG_PREZZO_MQ` int(11) DEFAULT NULL,
+    #         `PRICE_ABBATTUTO` int(11) DEFAULT NULL,
+    #         `PRICE_ABBATTUTO_MQ` int(11) DEFAULT NULL,
+    #         `CNT_MZ` int(11) DEFAULT NULL,
+    #         `DATA` varchar(10) DEFAULT NULL
+    #         );
+    #         """
+    #     )
+    # conn.commit()
+
+    # truncateSQLTable(connectToSQLite(), 'Mapping','sqlite')
+    # truncateSQLTable(connectToSQLite(), 'Averages','sqlite')
+
+    # insertMappingToSQL(connectToSQLite(), rows, 'sqlite')
+    # cleanAuctions(connectToSQLite())
+    # cleanZeroPrice(connectToSQLite())
+    # updateRangesMapping(connectToSQLite(),"sqlite")
+    # insertAveragesIfOccurs(connectToSQLite(),"sqlite")
+    # updateAverages(connectToSQLite(),"sqlite")
+
+    # cleanOutOfRange(connectToSQLite(),'sqlite')
+    # updateAverages(connectToSQLite(),"sqlite")
+    # cleanOutOfRange(connectToSQLite(),'sqlite')
+    # updateAverages(connectToSQLite(),"sqlite")
+
+    # insertMappingStoryToSQL(connectToSQLite(),"sqlite")
+    # insertAveragesStoryToSQL(connectToSQLite(),"sqlite",datetime.datetime.now().strftime("%Y%m%d"))
+
+    # insertNewOpportunities(connectToSQLite(),"sqlite")
+
+
+    # updateExistingOpportunities(connectToSQLite(),"sqlite")
+    # markLostOpportuntiies(connectToSQLite(),"sqlite")
+    # conn.close()
 
 
 
