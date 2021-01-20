@@ -946,25 +946,41 @@ def launch():
     if not os.path.exists(path):
         os.mkdir(path)
 
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        for index, row in data.iterrows():
-            links = []
-            i = i + 1
-            # path = ROOT_DIR +"\\IMMOBILIARE\\" + str(row['zone_code']) + \
-                # "" + str(row['microzone_code']) + "\\"
-            path = os.path.join(ROOT_DIR,"IMMOBILIARE",str(row['zone_code']) + "" + str(row['microzone_code']))
-            print(path)
-            url = row['url']
-            links = get_links_immobiliare(url)
-            print(str(i) + " lista da link " + url)
-            print("totale links: " + str(len(links)))
-            j = 0
-            for s in links:
-                j = j + 1
-                futures.append(
-                    executor.submit(get_data_immobiliare, s, path, str(j), row)
-                )
-
+    # with ThreadPoolExecutor(max_workers=2) as executor:
+    #     for index, row in data.iterrows():
+    #         links = []
+    #         i = i + 1
+    #         # path = ROOT_DIR +"\\IMMOBILIARE\\" + str(row['zone_code']) + \
+    #             # "" + str(row['microzone_code']) + "\\"
+    #         path = os.path.join(ROOT_DIR,"IMMOBILIARE",str(row['zone_code']) + "" + str(row['microzone_code']))
+    #         print(path)
+    #         url = row['url']
+    #         links = get_links_immobiliare(url)
+    #         print(str(i) + " lista da link " + url)
+    #         print("totale links: " + str(len(links)))
+    #         j = 0
+    #         for s in links:
+    #             j = j + 1
+    #             futures.append(
+    #                 executor.submit(get_data_immobiliare, s, path, str(j), row)
+    #             )
+    
+    for index, row in data.iterrows():
+        links = []
+        i = i + 1
+        # path = ROOT_DIR +"\\IMMOBILIARE\\" + str(row['zone_code']) + \
+            # "" + str(row['microzone_code']) + "\\"
+        path = os.path.join(ROOT_DIR,"IMMOBILIARE",str(row['zone_code']) + "" + str(row['microzone_code']))
+        print(path)
+        url = row['url']
+        links = get_links_immobiliare(url)
+        print(str(i) + " lista da link " + url)
+        print("totale links: " + str(len(links)))
+        j = 0
+        for s in links:
+            j = j + 1
+            get_data_immobiliare(s, path, str(j), row)
+            
 
     end_time = time()
     elapsed_time = end_time - start_time
