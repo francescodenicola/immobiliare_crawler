@@ -125,6 +125,7 @@ def connectToSQL(type):
 
 def connectToSQLite():
     # conn = create.create_connection(ROOT_DIR+"\\utils\\sqlite\\immobiliare_crawler.db")
+    ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
     conn = create.create_connection(os.path.join(ROOT_DIR,"utils","sqlite","immobiliare_crawler.db"))
     return conn
 
@@ -945,7 +946,7 @@ def launch():
     if not os.path.exists(path):
         os.mkdir(path)
 
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    with ThreadPoolExecutor(max_workers=2) as executor:
         for index, row in data.iterrows():
             links = []
             i = i + 1
