@@ -1055,7 +1055,6 @@ def launch():
         for filename in files:
             filepath = subdir + os.sep + filename
             if filepath.endswith(".json"):
-                print(e)
                 LOG_insert("file.log", formatLOG , "CLEANING "+ filepath, logging.INFO)
                 f = open(filepath)
                 d = json.load(f)
@@ -1280,7 +1279,6 @@ def onlyinsert():
         for filename in files:
             filepath = subdir + os.sep + filename
             if filepath.endswith(".json"):
-                print(e)
                 LOG_insert("file.log", formatLOG , "CLEANING "+ filepath, logging.INFO)
                 f = open(filepath)
                 d = json.load(f)
