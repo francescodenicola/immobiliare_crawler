@@ -160,27 +160,27 @@ def cleanDataImmobiliare(json_object):
     try:
         country = json_object["listing"]["properties"][0]["location"]["nation"]["name"]
     except Exception as e:
-        print(e)
-        LOG_insert("file.log", formatLOG , "missing country "+ e, logging.WARNING)
+        print(str(e))
+        LOG_insert("file.log", formatLOG , "missing country "+ str(e), logging.WARNING)
         country = 'Italia'
 
     try:
         region = json_object["listing"]["properties"][0]["location"]["region"]["name"]
     except Exception as e:
-        print(e)
-        LOG_insert("file.log", formatLOG , "missing region "+ e, logging.WARNING)
+        print(str(e))
+        LOG_insert("file.log", formatLOG , "missing region "+ str(e), logging.WARNING)
         region = 'Piemonte'
     try:
         province = json_object["listing"]["properties"][0]["location"]["province"]["name"]
     except Exception as e:
-        print(e)
-        LOG_insert("file.log", formatLOG , "missing province "+ e, logging.WARNING)
+        print(str(e))
+        LOG_insert("file.log", formatLOG , "missing province "+ str(e), logging.WARNING)
         region = 'Torino'
     try:    
         city = json_object["listing"]["properties"][0]["location"]["city"]["name"]
     except Exception as e:
-        print(e)
-        LOG_insert("file.log", formatLOG , "missing city "+ e, logging.WARNING)
+        print(str(e))
+        LOG_insert("file.log", formatLOG , "missing city "+ str(e), logging.WARNING)
         region = 'Torino'
 
     id = json_object["listing"]["id"]
