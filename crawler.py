@@ -101,7 +101,7 @@ def get_data_immobiliare(web_addr, path, name, origin):
         df = dt.set_index('attribute').to_dict()
         json_object.update({'details': df})
     except Exception as e: 
-        LOG_insert("file.log", formatLOG , "details wrong or missing", logging.WARNING)
+        LOG_insert("file.log", formatLOG , "details wrong or missing "+str(e), logging.WARNING)
         print(e) 
 
     try:
@@ -115,7 +115,7 @@ def get_data_immobiliare(web_addr, path, name, origin):
             with open(os.path.join(path, ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(5))) + '.json', 'w') as outfile:
                 json.dump(json_object, outfile)
     except Exception as e: 
-        LOG_insert("file.log", formatLOG , "exception on file name creation", logging.WARNING)
+        LOG_insert("file.log", formatLOG , "exception on file name creation "+str(e), logging.WARNING)
         print(e)
         # with open(path + "\\" + ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(5)) + '.json', 'w') as outfile:
         with open(os.path.join(path, ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(5))) + '.json', 'w') as outfile:
@@ -157,182 +157,198 @@ def connectToSQLite():
 
 def cleanDataImmobiliare(json_object):
      # prepare i dati prima dell'inserimento in sql
-    try:
-        country = json_object["listing"]["properties"][0]["location"]["nation"]["name"]
-    except Exception as e:
-        print(str(e))
-        LOG_insert("file.log", formatLOG , "missing country "+ str(e), logging.WARNING)
-        country = 'Italia'
+    if "listing" not in json_object:
+        print("DATA EMPTY FOR: " + str(json_object["url"]))
+        LOG_insert("file.log", formatLOG , "DATA EMPTY for:  "+ str(json_object["url"]), logging.WARNING)
+        return None
 
-    try:
-        region = json_object["listing"]["properties"][0]["location"]["region"]["name"]
-    except Exception as e:
-        print(str(e))
-        LOG_insert("file.log", formatLOG , "missing region "+ str(e), logging.WARNING)
-        region = 'Piemonte'
-    try:
-        province = json_object["listing"]["properties"][0]["location"]["province"]["name"]
-    except Exception as e:
-        print(str(e))
-        LOG_insert("file.log", formatLOG , "missing province "+ str(e), logging.WARNING)
-        region = 'Torino'
-    try:    
-        city = json_object["listing"]["properties"][0]["location"]["city"]["name"]
-    except Exception as e:
-        print(str(e))
-        LOG_insert("file.log", formatLOG , "missing city "+ str(e), logging.WARNING)
-        region = 'Torino'
-
-    id = json_object["listing"]["id"]
-    microzone = json_object["microzone"]
-    url = json_object["url"]
-    if json_object["listing"]["advertiser"]["agency"] != None:
-        agency = json_object["listing"]["advertiser"]["agency"]["displayName"]
     else:
-        agency = "Private"
+        try:
+            country = json_object["listing"]["properties"][0]["location"]["nation"]["name"]
+        except Exception as e:
+            print(str(e))
+            LOG_insert("file.log", formatLOG , "missing country "+ str(e), logging.WARNING)
+            country = 'Italia'
 
-    if json_object["listing"]["properties"][0]["location"]["address"] is None:
-        address = ""
-    else:
-        if json_object["listing"]["properties"][0]["location"]["streetNumber"] is None:
-            address = json_object["listing"]["properties"][0]["location"]["address"]
-        else:
-            address = json_object["listing"]["properties"][0]["location"]["address"] + " " + \
-                json_object["listing"]["properties"][0]["location"]["streetNumber"].strip()
+        try:
+            region = json_object["listing"]["properties"][0]["location"]["region"]["name"]
+        except Exception as e:
+            print(str(e))
+            LOG_insert("file.log", formatLOG , "missing region "+ str(e), logging.WARNING)
+            region = 'Piemonte'
+        try:
+            province = json_object["listing"]["properties"][0]["location"]["province"]["name"]
+        except Exception as e:
+            print(str(e))
+            LOG_insert("file.log", formatLOG , "missing province "+ str(e), logging.WARNING)
+            region = 'Torino'
+        try:    
+            city = json_object["listing"]["properties"][0]["location"]["city"]["name"]
+        except Exception as e:
+            print(str(e))
+            LOG_insert("file.log", formatLOG , "missing city "+ str(e), logging.WARNING)
+            region = 'Torino'
+        try:
+            id = json_object["listing"]["id"]
+        except Exception as e:
+            print(str(e))
+            LOG_insert("file.log", formatLOG , "missing id "+ str(e), logging.WARNING)
+            url = json_object["url"]
 
-    mq = 0
-    
-    try:
-        if ((str(json_object["listing"]["properties"][0]["surfaceConstitution"]["totalMainSurface"]) is not None)):
-            mq = str(json_object["listing"]["properties"][0]["surfaceConstitution"]["totalMainSurface"]).split("m\u00b2")[0].strip()
-        if (str(json_object["listing"]["properties"][0]["surfaceValue"]) is not None) and (mq =="None"):
-            mq = str(json_object["listing"]["properties"][0]["surfaceValue"]).split("m\u00b2")[0].strip()
-        if str(json_object["listing"]["properties"][0]["surfaceValue"]) == "None":
-            mq = "n.a."
-    except:
-        mq = "N.A."
-        pass
-
-    if mq != "N.A.":
-        mq = mq.replace(",",".")
-        if mq.find(".")!=-1:
-            mq_tmp = mq.split(".")
-            mq = mq_tmp[0]
-        
-
-    range = 'tbl'
-
-    try:
-        if json_object["listing"]["properties"][0]["price"]["price"] is None:
-            price = "0"
-        else:
-            price = json_object["listing"]["properties"][0]["price"]["price"]
-    except Exception as e:
-        price = "0"
-
-    #print(json_object["details"])
-
-    floor = "N.A."
-
-    try:
-        # must be surrounded by try / except
-        if len(json_object["listing"]["properties"][0]
-            ["surfaceConstitution"]["surfaceConstitutionElements"]) > 0:
-            if str(json_object["listing"]["properties"][0]["surfaceConstitution"]
-                ["surfaceConstitutionElements"][0]["floor"]).isdigit():
-                floor = str(json_object["listing"]["properties"][0][
-                            "surfaceConstitution"]["surfaceConstitutionElements"][0]["floor"])
-            elif json_object["listing"]["properties"][0]["surfaceConstitution"]["surfaceConstitutionElements"][0]["floor"] == "Piano Rialzato":
-                floor = "Piano Rialzato"
-            elif json_object["listing"]["properties"][0]["surfaceConstitution"]["surfaceConstitutionElements"][0]["floor"] == "Piano Terra":
-                floor = "Piano Terra"
-            elif json_object["listing"]["properties"][0]["surfaceConstitution"]["surfaceConstitutionElements"][0]["floor"] == "Attico":
-                floor = "Attico"
-        if (floor == "N.A."):
-            try:
-                floor = str(json_object["details"]["value"]["piano"])
-            except:
-                pass
-            
-        if (floor == "N.A."):
-            if json_object["listing"]["properties"][0]["description"].find("piano") != -1:
-                txt = json_object["listing"]["properties"][0]["description"].split("piano")[0]
-                if (txt.find("primo")>-1) or (txt.find("1\u00b0")>-1) or (txt.find("1°")>-1):
-                    floor = "1"
-                elif (txt.find("secondo")>-1) or (txt.find("2\u00b0")>-1) or (txt.find("2°")>-1):
-                    floor = "2"
-                elif (txt.find("terzo")>-1) or (txt.find("3\u00b0")>-1) or (txt.find("3°")>-1):
-                    floor = "3"
-                elif (txt.find("quarto")>-1) or (txt.find("4\u00b0")>-1) or (txt.find("4°")>-1):
-                    floor = "4"
-                elif (txt.find("quinto")>-1) or (txt.find("5\u00b0")>-1) or (txt.find("5°")>-1):
-                    floor = "5"
-                elif (txt.find("sesto")>-1) or (txt.find("6\u00b0")>-1) or (txt.find("6°")>-1):
-                    floor = "6"
-                elif (txt.find("settimo")>-1) or (txt.find("7\u00b0")>-1) or (txt.find("7°")>-1):
-                    floor = "7"
-                elif (txt.find("ottavo")>-1) or (txt.find("8\u00b0")>-1) or (txt.find("8°")>-1):
-                    floor = "8"
-                elif (txt.find("nono")>-1) or (txt.find("9\u00b0")>-1) or (txt.find("9°")>-1):
-                    floor = "9"
-                elif (txt.find("dieci")>-1) or (txt.find("10\u00b0")>-1) or (txt.find("10°")>-1):
-                    floor = "10"
-                elif (txt.find("attico")>-1):
-                    floor = "Attico"    
-                elif (txt.find("piano terra")>-1):
-                    floor = "Piano Terra"
-                elif (txt.find("piano rialzato")>-1):
-                    floor = "Piano Rialzato"
-
+            if url.find("https://www.immobiliare.it/annunci/")!=-1:
+                id = str.split("https://www.immobiliare.it/annunci/79620309/","https://www.immobiliare.it/annunci/")[1][:-1]
             else:
-                floor = "N.A."
-    except:
+                id = 'NOT FOUND'
+
+        microzone = json_object["microzone"]
+        url = json_object["url"]
+        if json_object["listing"]["advertiser"]["agency"] != None:
+            agency = json_object["listing"]["advertiser"]["agency"]["displayName"]
+        else:
+            agency = "Private"
+
+        if json_object["listing"]["properties"][0]["location"]["address"] is None:
+            address = ""
+        else:
+            if json_object["listing"]["properties"][0]["location"]["streetNumber"] is None:
+                address = json_object["listing"]["properties"][0]["location"]["address"]
+            else:
+                address = json_object["listing"]["properties"][0]["location"]["address"] + " " + \
+                    json_object["listing"]["properties"][0]["location"]["streetNumber"].strip()
+
+        mq = 0
+        
+        try:
+            if ((str(json_object["listing"]["properties"][0]["surfaceConstitution"]["totalMainSurface"]) is not None)):
+                mq = str(json_object["listing"]["properties"][0]["surfaceConstitution"]["totalMainSurface"]).split("m\u00b2")[0].strip()
+            if (str(json_object["listing"]["properties"][0]["surfaceValue"]) is not None) and (mq =="None"):
+                mq = str(json_object["listing"]["properties"][0]["surfaceValue"]).split("m\u00b2")[0].strip()
+            if str(json_object["listing"]["properties"][0]["surfaceValue"]) == "None":
+                mq = "n.a."
+        except:
+            mq = "N.A."
+            pass
+
+        if mq != "N.A.":
+            mq = mq.replace(",",".")
+            if mq.find(".")!=-1:
+                mq_tmp = mq.split(".")
+                mq = mq_tmp[0]
+            
+
+        range = 'tbl'
+
+        try:
+            if json_object["listing"]["properties"][0]["price"]["price"] is None:
+                price = "0"
+            else:
+                price = json_object["listing"]["properties"][0]["price"]["price"]
+        except Exception as e:
+            price = "0"
+
+        #print(json_object["details"])
+
         floor = "N.A."
-        pass
 
-    floor = floor.replace("° piano, con ascensore","")
-    floor = floor.replace("° piano","")
+        try:
+            # must be surrounded by try / except
+            if len(json_object["listing"]["properties"][0]
+                ["surfaceConstitution"]["surfaceConstitutionElements"]) > 0:
+                if str(json_object["listing"]["properties"][0]["surfaceConstitution"]
+                    ["surfaceConstitutionElements"][0]["floor"]).isdigit():
+                    floor = str(json_object["listing"]["properties"][0][
+                                "surfaceConstitution"]["surfaceConstitutionElements"][0]["floor"])
+                elif json_object["listing"]["properties"][0]["surfaceConstitution"]["surfaceConstitutionElements"][0]["floor"] == "Piano Rialzato":
+                    floor = "Piano Rialzato"
+                elif json_object["listing"]["properties"][0]["surfaceConstitution"]["surfaceConstitutionElements"][0]["floor"] == "Piano Terra":
+                    floor = "Piano Terra"
+                elif json_object["listing"]["properties"][0]["surfaceConstitution"]["surfaceConstitutionElements"][0]["floor"] == "Attico":
+                    floor = "Attico"
+            if (floor == "N.A."):
+                try:
+                    floor = str(json_object["details"]["value"]["piano"])
+                except:
+                    pass
+                
+            if (floor == "N.A."):
+                if json_object["listing"]["properties"][0]["description"].find("piano") != -1:
+                    txt = json_object["listing"]["properties"][0]["description"].split("piano")[0]
+                    if (txt.find("primo")>-1) or (txt.find("1\u00b0")>-1) or (txt.find("1°")>-1):
+                        floor = "1"
+                    elif (txt.find("secondo")>-1) or (txt.find("2\u00b0")>-1) or (txt.find("2°")>-1):
+                        floor = "2"
+                    elif (txt.find("terzo")>-1) or (txt.find("3\u00b0")>-1) or (txt.find("3°")>-1):
+                        floor = "3"
+                    elif (txt.find("quarto")>-1) or (txt.find("4\u00b0")>-1) or (txt.find("4°")>-1):
+                        floor = "4"
+                    elif (txt.find("quinto")>-1) or (txt.find("5\u00b0")>-1) or (txt.find("5°")>-1):
+                        floor = "5"
+                    elif (txt.find("sesto")>-1) or (txt.find("6\u00b0")>-1) or (txt.find("6°")>-1):
+                        floor = "6"
+                    elif (txt.find("settimo")>-1) or (txt.find("7\u00b0")>-1) or (txt.find("7°")>-1):
+                        floor = "7"
+                    elif (txt.find("ottavo")>-1) or (txt.find("8\u00b0")>-1) or (txt.find("8°")>-1):
+                        floor = "8"
+                    elif (txt.find("nono")>-1) or (txt.find("9\u00b0")>-1) or (txt.find("9°")>-1):
+                        floor = "9"
+                    elif (txt.find("dieci")>-1) or (txt.find("10\u00b0")>-1) or (txt.find("10°")>-1):
+                        floor = "10"
+                    elif (txt.find("attico")>-1):
+                        floor = "Attico"    
+                    elif (txt.find("piano terra")>-1):
+                        floor = "Piano Terra"
+                    elif (txt.find("piano rialzato")>-1):
+                        floor = "Piano Rialzato"
 
-    auction = 0
-    #flag per cancellare nuove costruzioni
-    if(json_object["listing"]["properties"][0]["condition"]!=None):
-        if json_object["listing"]["properties"][0]["condition"]["id"]== "1":
+                else:
+                    floor = "N.A."
+        except:
+            floor = "N.A."
+            pass
+
+        floor = floor.replace("° piano, con ascensore","")
+        floor = floor.replace("° piano","")
+
+        auction = 0
+        #flag per cancellare nuove costruzioni
+        if(json_object["listing"]["properties"][0]["condition"]!=None):
+            if json_object["listing"]["properties"][0]["condition"]["id"]== "1":
+                auction = 1
+
+        #flag per cancellare aste
+        if (auction == 0) and \
+            ((json_object["listing"]["properties"][0]["description"].find(" asta ") != -1) or \
+            (json_object["listing"]["properties"][0]["description"].find(" giudiziari") != -1)) or \
+            'Tribunale' in agency:
             auction = 1
 
-    #flag per cancellare aste
-    if (auction == 0) and \
-        ((json_object["listing"]["properties"][0]["description"].find(" asta ") != -1) or \
-        (json_object["listing"]["properties"][0]["description"].find(" giudiziari") != -1)) or \
-        'Tribunale' in agency:
-        auction = 1
+        #toilet (da migliorare)
+        if "bagni" in (json_object["trovakasa"]):
+            toilet = int(json_object["trovakasa"]["bagni"])
+        else:
+            toilet = 0
 
-    #toilet (da migliorare)
-    if "bagni" in (json_object["trovakasa"]):
-        toilet = int(json_object["trovakasa"]["bagni"])
-    else:
-        toilet = 0
+        data = str(datetime.datetime.now().date())
 
-    data = str(datetime.datetime.now().date())
+        map = Mapping(
+            Country=country.replace("'",r"\'"),
+            Region=region.replace("'",r"\'"),
+            Province=province.replace("'",r"\'"),
+            City=city.replace("'",r"\'"),
+            Microzone=microzone.replace("'",r"\'"),
+            id=id,
+            url=url,
+            Agency=agency.replace("'",r"\'"),
+            Address=address.replace("'",r"\'"),
+            MQ=mq,
+            Range=range,
+            Price=price,
+            Floor=str(floor),
+            Auction=auction,
+            Toilet=toilet,
+            Date=data)
 
-    map = Mapping(
-        Country=country.replace("'",r"\'"),
-        Region=region.replace("'",r"\'"),
-        Province=province.replace("'",r"\'"),
-        City=city.replace("'",r"\'"),
-        Microzone=microzone.replace("'",r"\'"),
-        id=id,
-        url=url,
-        Agency=agency.replace("'",r"\'"),
-        Address=address.replace("'",r"\'"),
-        MQ=mq,
-        Range=range,
-        Price=price,
-        Floor=str(floor),
-        Auction=auction,
-        Toilet=toilet,
-        Date=data)
-
-    return map
+        return map
 
 
 def truncateSQLTable(connection, tableName,type):
