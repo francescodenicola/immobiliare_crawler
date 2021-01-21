@@ -30,11 +30,11 @@ def LOG_insert(file, format, text, level):
     if not logger.handlers:
         logger.addHandler(infoLog)
         if (level == logging.INFO):
-            logger.info(text)
+            logger.info(text+"\n")
         if (level == logging.ERROR):
-            logger.error(text)
+            logger.error(text+"\n")
         if (level == logging.WARNING):
-            logger.warning(text)
+            logger.warning(text+"\n")
     
     infoLog.close()
     logger.removeHandler(infoLog)
@@ -157,10 +157,32 @@ def connectToSQLite():
 
 def cleanDataImmobiliare(json_object):
      # prepare i dati prima dell'inserimento in sql
-    country = json_object["listing"]["properties"][0]["location"]["nation"]["name"]
-    region = json_object["listing"]["properties"][0]["location"]["region"]["name"]
-    province = json_object["listing"]["properties"][0]["location"]["province"]["name"]
-    city = json_object["listing"]["properties"][0]["location"]["city"]["name"]
+    try:
+        country = json_object["listing"]["properties"][0]["location"]["nation"]["name"]
+    except e as Exception:
+        print(e)
+        LOG_insert("file.log", formatLOG , "missing country "+ e, logging.WARNING)
+        country = 'Italia'
+
+    try:
+        region = json_object["listing"]["properties"][0]["location"]["region"]["name"]
+    except e as Exception:
+        print(e)
+        LOG_insert("file.log", formatLOG , "missing region "+ e, logging.WARNING)
+        region = 'Piemonte'
+    try:
+        province = json_object["listing"]["properties"][0]["location"]["province"]["name"]
+        except e as Exception:
+        print(e)
+        LOG_insert("file.log", formatLOG , "missing province "+ e, logging.WARNING)
+        region = 'Torino'
+    try:    
+        city = json_object["listing"]["properties"][0]["location"]["city"]["name"]
+    except e as Exception:
+        print(e)
+        LOG_insert("file.log", formatLOG , "missing city "+ e, logging.WARNING)
+        region = 'Torino'
+
     id = json_object["listing"]["id"]
     microzone = json_object["microzone"]
     url = json_object["url"]
@@ -1033,7 +1055,8 @@ def launch():
         for filename in files:
             filepath = subdir + os.sep + filename
             if filepath.endswith(".json"):
-                # print(filepath)
+                print(e)
+                LOG_insert("file.log", formatLOG , "CLEANING "+ filepath, logging.INFO)
                 f = open(filepath)
                 d = json.load(f)
                 elem = cleanDataImmobiliare(d)
@@ -1235,4 +1258,66 @@ def launch():
     # conn.close()
 
 
+def onlyinsert():
+    ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
+    DIRECTORY = os.environ.get("DIRECTORY")
 
+    print("truncate")
+    start_time = time()
+
+
+    truncateSQLTable(connectToSQL('mssql'), 'Mapping','mysql')
+    truncateSQLTable(connectToSQL('mssql'), 'Averages','mysql')
+
+    end_time = time()
+    elapsed_time = end_time - start_time
+    print(f"Elapsed run time TRUNCATE: {elapsed_time} seconds")
+
+
+    path_to_walk = os.path.join(ROOT_DIR,"IMMOBILIARE")
+    rows = []
+    for subdir, dirs, files in os.walk(path_to_walk):
+        for filename in files:
+            filepath = subdir + os.sep + filename
+            if filepath.endswith(".json"):
+                print(e)
+                LOG_insert("file.log", formatLOG , "CLEANING "+ filepath, logging.INFO)
+                f = open(filepath)
+                d = json.load(f)
+                elem = cleanDataImmobiliare(d)
+                if elem != None:
+                    rows.append(elem)
+
+
+    print("insertion")
+    start_time = time()
+
+    insertMappingToSQL(connectToSQL('mssql'), rows, 'mysql')
+    end_time = time()
+    elapsed_time = end_time - start_time
+    print(f"Elapsed run time INSERTION: {elapsed_time} seconds")
+
+    deleted_rows = cleanAuctions(connectToSQL('mssql'))
+    print("Sono state cancellati "+str(deleted_rows)+" records da aste o nuove costruzioni")
+    deleted_rows = cleanZeroPrice(connectToSQL('mssql'))
+    print("Sono state cancellati "+str(deleted_rows)+" records con price zero")
+    deleted_rows = cleanZeroMQ(connectToSQL('mssql'))
+    print("Sono state cancellati "+str(deleted_rows)+" records con mq zero")
+
+
+    updateRangesMapping(connectToSQL('mssql'),"mysql")
+    insertAveragesIfOccurs(connectToSQL('mssql'),"mysql")
+    updateAverages(connectToSQL('mssql'),"mysql")
+
+    cleanOutOfRange(connectToSQL('mssql'),'mysql')
+    updateAverages(connectToSQL('mssql'),"mysql")
+    cleanOutOfRange(connectToSQL('mssql'),'mysql')
+    updateAverages(connectToSQL('mssql'),"mysql")
+
+    insertMappingStoryToSQL(connectToSQL('mssql'),"mysql")
+    insertAveragesStoryToSQL(connectToSQL('mssql'),"mysql",datetime.datetime.now().strftime("%Y%m%d"))
+
+    insertNewOpportunities(connectToSQL('mssql'),"mysql")
+
+    updateExistingOpportunities(connectToSQL('mssql'),"mysql")
+    markLostOpportuntiies(connectToSQL('mssql'),"mysql")

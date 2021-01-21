@@ -60,10 +60,16 @@ def scrapeNow(request: Request,background_tasks: BackgroundTasks):
     else:
         return RedirectResponse(url='/')
 
-@app.post("/scrape/")
+@app.post("/scrapeandinsert/")
 def scrape(background_tasks: BackgroundTasks):
     print("ok")
     background_tasks.add_task(crawler.launch)
+    return {"message": "Notification sent in the background"}
+
+@app.post("/onlyinsert/")
+def insert(background_tasks: BackgroundTasks):
+    print("ok")
+    background_tasks.add_task(crawler.onlyinsert)
     return {"message": "Notification sent in the background"}
 
 
