@@ -15,9 +15,31 @@ from utils.sqlite import create
 import shutil
 import string
 import random
+import logging
 
 
 load_dotenv()
+formatLOG = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+
+def LOG_insert(file, format, text, level):
+    infoLog = logging.FileHandler(file)
+    infoLog.setFormatter(format)
+    logger = logging.getLogger(file)
+    logger.setLevel(level)
+    
+    if not logger.handlers:
+        logger.addHandler(infoLog)
+        if (level == logging.INFO):
+            logger.info(text)
+        if (level == logging.ERROR):
+            logger.error(text)
+        if (level == logging.WARNING):
+            logger.warning(text)
+    
+    infoLog.close()
+    logger.removeHandler(infoLog)
+    
+    return
 
 
 def connect(web_addr):
@@ -79,7 +101,7 @@ def get_data_immobiliare(web_addr, path, name, origin):
         df = dt.set_index('attribute').to_dict()
         json_object.update({'details': df})
     except Exception as e: 
-        print("details wrong or missing")
+        LOG_insert("file.log", formatLOG , "details wrong or missing", logging.WARNING)
         print(e) 
 
     try:
@@ -93,7 +115,7 @@ def get_data_immobiliare(web_addr, path, name, origin):
             with open(os.path.join(path, ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(5))) + '.json', 'w') as outfile:
                 json.dump(json_object, outfile)
     except Exception as e: 
-        print("exception")
+        LOG_insert("file.log", formatLOG , "exception on file name creation", logging.WARNING)
         print(e)
         # with open(path + "\\" + ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(5)) + '.json', 'w') as outfile:
         with open(os.path.join(path, ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(5))) + '.json', 'w') as outfile:
@@ -610,7 +632,7 @@ def insertMappingToSQL(connection, rows,type):
         sql = "INSERT INTO MAPPING (COUNTRY,REGION,PROVINCE,CITY,MICROZONE,ID,URL,AGENCY,ADDRESS,MQ,RANGE,FLOOR,AUCTION,TOILET,DATA,PRICE) VALUES ( ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
         data_tuple = []
         for row in rows:
-            print(row)
+            #print(row)
             data_tuple.append([ 
             row.Country, 
             row.Region,
@@ -676,7 +698,7 @@ def insertAveragesStoryToSQL(connection,type, output_timestamp):
         sql = "INSERT INTO Averages_story SELECT Averages.*,'"+output_timestamp+"' FROM Averages WHERE '"+output_timestamp+"' NOT IN (SELECT DISTINCT DATA FROM Averages_story)"
     elif type == 'sqlite':
         sql = "INSERT INTO Averages_story SELECT Averages.*,'"+output_timestamp+"' FROM Averages WHERE '"+output_timestamp+"' NOT IN (SELECT DISTINCT DATA FROM Averages_story)"
-    print(sql)
+    LOG_insert("file.log", formatLOG , "AVERAGE query: " + sql, logging.INFO)
     cursor.execute(sql)
     connection.commit()
     connection.close()
@@ -938,7 +960,7 @@ def launch():
     start_time = time()
     #output_timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     output_timestamp = datetime.datetime.now().strftime("%Y%m%d")
-    print(output_timestamp)
+    LOG_insert("file.log", formatLOG , "STARTED ON: " + str(output_timestamp), logging.INFO)
     # path = ROOT_DIR+"\\IMMOBILIARE\\"
     path = os.path.join(ROOT_DIR,"IMMOBILIARE")
 
@@ -950,7 +972,7 @@ def launch():
     if not os.path.exists(path):
         os.mkdir(path)
 
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=2) as executor:
         for index, row in data.iterrows():
             links = []
             i = i + 1
@@ -960,8 +982,10 @@ def launch():
             print(path)
             url = row['url']
             links = get_links_immobiliare(url)
-            print(str(i) + " lista da link " + url)
-            print("totale links: " + str(len(links)))
+            LOG_insert("file.log", formatLOG , str(i) + " lista da link " + url, logging.INFO)
+            #print(str(i) + " lista da link " + url)
+            LOG_insert("file.log", formatLOG , str(i) + "totale links: " + str(len(links)), logging.INFO)
+            #print("totale links: " + str(len(links)))
             j = 0
             for s in links:
                 j = j + 1
@@ -988,66 +1012,67 @@ def launch():
 
     end_time = time()
     elapsed_time = end_time - start_time
+    LOG_insert("file.log", formatLOG , str(i) + f"Elapsed run time SCRAPING: {elapsed_time} seconds", logging.INFO)
     print(f"Elapsed run time SCRAPING: {elapsed_time} seconds")
 
     print("truncate")
     start_time = time()
 
 
-    # truncateSQLTable(connectToSQL('mssql'), 'Mapping','mysql')
-    # truncateSQLTable(connectToSQL('mssql'), 'Averages','mysql')
+    truncateSQLTable(connectToSQL('mssql'), 'Mapping','mysql')
+    truncateSQLTable(connectToSQL('mssql'), 'Averages','mysql')
 
-    # end_time = time()
-    # elapsed_time = end_time - start_time
-    # print(f"Elapsed run time TRUNCATE: {elapsed_time} seconds")
-
-
-    # path_to_walk = os.path.join(ROOT_DIR,"IMMOBILIARE")
-    # rows = []
-    # for subdir, dirs, files in os.walk(path_to_walk):
-    #     for filename in files:
-    #         filepath = subdir + os.sep + filename
-    #         if filepath.endswith(".json"):
-    #             # print(filepath)
-    #             f = open(filepath)
-    #             d = json.load(f)
-    #             elem = cleanDataImmobiliare(d)
-    #             if elem != None:
-    #                 rows.append(elem)
+    end_time = time()
+    elapsed_time = end_time - start_time
+    print(f"Elapsed run time TRUNCATE: {elapsed_time} seconds")
 
 
-    # print("insertion")
-    # start_time = time()
-
-    # insertMappingToSQL(connectToSQL('mssql'), rows, 'mysql')
-    # end_time = time()
-    # elapsed_time = end_time - start_time
-    # print(f"Elapsed run time INSERTION: {elapsed_time} seconds")
-
-    # deleted_rows = cleanAuctions(connectToSQL('mssql'))
-    # print("Sono state cancellati "+str(deleted_rows)+" records da aste o nuove costruzioni")
-    # deleted_rows = cleanZeroPrice(connectToSQL('mssql'))
-    # print("Sono state cancellati "+str(deleted_rows)+" records con price zero")
-    # deleted_rows = cleanZeroMQ(connectToSQL('mssql'))
-    # print("Sono state cancellati "+str(deleted_rows)+" records con mq zero")
+    path_to_walk = os.path.join(ROOT_DIR,"IMMOBILIARE")
+    rows = []
+    for subdir, dirs, files in os.walk(path_to_walk):
+        for filename in files:
+            filepath = subdir + os.sep + filename
+            if filepath.endswith(".json"):
+                # print(filepath)
+                f = open(filepath)
+                d = json.load(f)
+                elem = cleanDataImmobiliare(d)
+                if elem != None:
+                    rows.append(elem)
 
 
-    # updateRangesMapping(connectToSQL('mssql'),"mysql")
-    # insertAveragesIfOccurs(connectToSQL('mssql'),"mysql")
-    # updateAverages(connectToSQL('mssql'),"mysql")
+    print("insertion")
+    start_time = time()
 
-    # cleanOutOfRange(connectToSQL('mssql'),'mysql')
-    # updateAverages(connectToSQL('mssql'),"mysql")
-    # cleanOutOfRange(connectToSQL('mssql'),'mysql')
-    # updateAverages(connectToSQL('mssql'),"mysql")
+    insertMappingToSQL(connectToSQL('mssql'), rows, 'mysql')
+    end_time = time()
+    elapsed_time = end_time - start_time
+    print(f"Elapsed run time INSERTION: {elapsed_time} seconds")
 
-    # insertMappingStoryToSQL(connectToSQL('mssql'),"mysql")
-    # insertAveragesStoryToSQL(connectToSQL('mssql'),"mysql",datetime.datetime.now().strftime("%Y%m%d"))
+    deleted_rows = cleanAuctions(connectToSQL('mssql'))
+    print("Sono state cancellati "+str(deleted_rows)+" records da aste o nuove costruzioni")
+    deleted_rows = cleanZeroPrice(connectToSQL('mssql'))
+    print("Sono state cancellati "+str(deleted_rows)+" records con price zero")
+    deleted_rows = cleanZeroMQ(connectToSQL('mssql'))
+    print("Sono state cancellati "+str(deleted_rows)+" records con mq zero")
 
-    # insertNewOpportunities(connectToSQL('mssql'),"mysql")
 
-    # updateExistingOpportunities(connectToSQL('mssql'),"mysql")
-    # markLostOpportuntiies(connectToSQL('mssql'),"mysql")
+    updateRangesMapping(connectToSQL('mssql'),"mysql")
+    insertAveragesIfOccurs(connectToSQL('mssql'),"mysql")
+    updateAverages(connectToSQL('mssql'),"mysql")
+
+    cleanOutOfRange(connectToSQL('mssql'),'mysql')
+    updateAverages(connectToSQL('mssql'),"mysql")
+    cleanOutOfRange(connectToSQL('mssql'),'mysql')
+    updateAverages(connectToSQL('mssql'),"mysql")
+
+    insertMappingStoryToSQL(connectToSQL('mssql'),"mysql")
+    insertAveragesStoryToSQL(connectToSQL('mssql'),"mysql",datetime.datetime.now().strftime("%Y%m%d"))
+
+    insertNewOpportunities(connectToSQL('mssql'),"mysql")
+
+    updateExistingOpportunities(connectToSQL('mssql'),"mysql")
+    markLostOpportuntiies(connectToSQL('mssql'),"mysql")
 
     # ########################################################################################################################
 
