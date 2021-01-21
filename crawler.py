@@ -172,7 +172,7 @@ def cleanDataImmobiliare(json_object):
         region = 'Piemonte'
     try:
         province = json_object["listing"]["properties"][0]["location"]["province"]["name"]
-        except e as Exception:
+    except e as Exception:
         print(e)
         LOG_insert("file.log", formatLOG , "missing province "+ e, logging.WARNING)
         region = 'Torino'
