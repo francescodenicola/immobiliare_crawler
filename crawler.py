@@ -159,26 +159,26 @@ def cleanDataImmobiliare(json_object):
      # prepare i dati prima dell'inserimento in sql
     try:
         country = json_object["listing"]["properties"][0]["location"]["nation"]["name"]
-    except e as Exception:
+    except Exception as e:
         print(e)
         LOG_insert("file.log", formatLOG , "missing country "+ e, logging.WARNING)
         country = 'Italia'
 
     try:
         region = json_object["listing"]["properties"][0]["location"]["region"]["name"]
-    except e as Exception:
+    except Exception as e:
         print(e)
         LOG_insert("file.log", formatLOG , "missing region "+ e, logging.WARNING)
         region = 'Piemonte'
     try:
         province = json_object["listing"]["properties"][0]["location"]["province"]["name"]
-    except e as Exception:
+    except Exception as e:
         print(e)
         LOG_insert("file.log", formatLOG , "missing province "+ e, logging.WARNING)
         region = 'Torino'
     try:    
         city = json_object["listing"]["properties"][0]["location"]["city"]["name"]
-    except e as Exception:
+    except Exception as e:
         print(e)
         LOG_insert("file.log", formatLOG , "missing city "+ e, logging.WARNING)
         region = 'Torino'
@@ -227,7 +227,7 @@ def cleanDataImmobiliare(json_object):
             price = "0"
         else:
             price = json_object["listing"]["properties"][0]["price"]["price"]
-    except e as Exception:
+    except Exception as e:
         price = "0"
 
     #print(json_object["details"])
