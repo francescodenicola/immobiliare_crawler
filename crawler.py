@@ -974,7 +974,7 @@ def markLostOpportuntiies(connection,type):
 ##########################################################################
 
 
-def launch():
+def scrape_and_insert():
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
     DIRECTORY = os.environ.get("DIRECTORY")
 
@@ -996,10 +996,9 @@ def launch():
     futures = []
 
     start_time = time()
-    #output_timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     output_timestamp = datetime.datetime.now().strftime("%Y%m%d")
     LOG_insert("file.log", formatLOG , "STARTED ON: " + str(output_timestamp), logging.INFO)
-    # path = ROOT_DIR+"\\IMMOBILIARE\\"
+
     path = os.path.join(ROOT_DIR,"IMMOBILIARE")
 
     print(path)
@@ -1031,26 +1030,26 @@ def launch():
                     executor.submit(get_data_immobiliare, s, path, str(j), row)
                 )
     
-    # for index, row in data.iterrows():
-    #     links = []
-    #     i = i + 1
-    #     # path = ROOT_DIR +"\\IMMOBILIARE\\" + str(row['zone_code']) + \
-    #         # "" + str(row['microzone_code']) + "\\"
-    #     path = os.path.join(ROOT_DIR,"IMMOBILIARE",str(row['zone_code']) + "" + str(row['microzone_code']))
-    #     print(path)
-    #     url = row['url']
-    #     links = get_links_immobiliare(url)
-    #     print(str(i) + " lista da link " + url)
-    #     print("totale links: " + str(len(links)))
-    #     j = 0
-    #     for s in links:
-    #         j = j + 1
-    #         get_data_immobiliare(s, path, str(j), row)
+    for index, row in data.iterrows():
+        links = []
+        i = i + 1
+        # path = ROOT_DIR +"\\IMMOBILIARE\\" + str(row['zone_code']) + \
+            # "" + str(row['microzone_code']) + "\\"
+        path = os.path.join(ROOT_DIR,"IMMOBILIARE",str(row['zone_code']) + "" + str(row['microzone_code']))
+        print(path)
+        url = row['url']
+        links = get_links_immobiliare(url)
+        print(str(i) + " lista da link " + url)
+        print("totale links: " + str(len(links)))
+        j = 0
+        for s in links:
+            j = j + 1
+            get_data_immobiliare(s, path, str(j), row)
 
 
     end_time = time()
     elapsed_time = end_time - start_time
-    LOG_insert("file.log", formatLOG , str(i) + f"Elapsed run time SCRAPING: {elapsed_time} seconds", logging.INFO)
+    LOG_insert("file.log", formatLOG ,  f"Elapsed run time SCRAPING: {elapsed_time} seconds", logging.INFO)
     print(f"Elapsed run time SCRAPING: {elapsed_time} seconds")
 
     print("truncate")
@@ -1062,6 +1061,7 @@ def launch():
 
     end_time = time()
     elapsed_time = end_time - start_time
+    LOG_insert("file.log", formatLOG , f"Elapsed run time TRUNCATE: {elapsed_time} seconds", logging.INFO)
     print(f"Elapsed run time TRUNCATE: {elapsed_time} seconds")
 
 
@@ -1086,15 +1086,21 @@ def launch():
     end_time = time()
     elapsed_time = end_time - start_time
     print(f"Elapsed run time INSERTION: {elapsed_time} seconds")
+    LOG_insert("file.log", formatLOG , f"Elapsed run time INSERTION: {elapsed_time} seconds", logging.INFO)
+
 
     deleted_rows = cleanAuctions(connectToSQL('mssql'))
-    print("Sono state cancellati "+str(deleted_rows)+" records da aste o nuove costruzioni")
+    print("Sono stati cancellati "+str(deleted_rows)+" records da aste o nuove costruzioni")
+    LOG_insert("file.log", formatLOG , f"Sono stati cancellati "+str(deleted_rows)+" records da aste o nuove costruzioni", logging.INFO)
     deleted_rows = cleanZeroPrice(connectToSQL('mssql'))
-    print("Sono state cancellati "+str(deleted_rows)+" records con price zero")
+    print("Sono stati cancellati "+str(deleted_rows)+" records con price zero")
+    LOG_insert("file.log", formatLOG , f"Sono stati cancellati "+str(deleted_rows)+" records con price zero", logging.INFO)
     deleted_rows = cleanZeroMQ(connectToSQL('mssql'))
-    print("Sono state cancellati "+str(deleted_rows)+" records con mq zero")
+    print("Sono stati cancellati "+str(deleted_rows)+" records con mq zero")
+    LOG_insert("file.log", formatLOG , f"Sono stati cancellati "+str(deleted_rows)+" records con mq zero", logging.INFO)
 
 
+    LOG_insert("file.log", formatLOG , f"Sync with SQL server", logging.INFO)
     updateRangesMapping(connectToSQL('mssql'),"mysql")
     insertAveragesIfOccurs(connectToSQL('mssql'),"mysql")
     updateAverages(connectToSQL('mssql'),"mysql")
@@ -1111,6 +1117,8 @@ def launch():
 
     updateExistingOpportunities(connectToSQL('mssql'),"mysql")
     markLostOpportuntiies(connectToSQL('mssql'),"mysql")
+
+    LOG_insert("file.log", formatLOG , f"End of Sync with SQL server", logging.INFO)
 
     # ########################################################################################################################
 
@@ -1273,7 +1281,7 @@ def launch():
     # conn.close()
 
 
-def onlyinsert():
+def only_insert():
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
     DIRECTORY = os.environ.get("DIRECTORY")
 
@@ -1286,6 +1294,7 @@ def onlyinsert():
 
     end_time = time()
     elapsed_time = end_time - start_time
+    LOG_insert("file.log", formatLOG , f"Elapsed run time TRUNCATE: {elapsed_time} seconds", logging.INFO)
     print(f"Elapsed run time TRUNCATE: {elapsed_time} seconds")
 
 
@@ -1310,15 +1319,21 @@ def onlyinsert():
     end_time = time()
     elapsed_time = end_time - start_time
     print(f"Elapsed run time INSERTION: {elapsed_time} seconds")
+    LOG_insert("file.log", formatLOG , f"Elapsed run time INSERTION: {elapsed_time} seconds", logging.INFO)
+
 
     deleted_rows = cleanAuctions(connectToSQL('mssql'))
-    print("Sono state cancellati "+str(deleted_rows)+" records da aste o nuove costruzioni")
+    print("Sono stati cancellati "+str(deleted_rows)+" records da aste o nuove costruzioni")
+    LOG_insert("file.log", formatLOG , f"Sono stati cancellati "+str(deleted_rows)+" records da aste o nuove costruzioni", logging.INFO)
     deleted_rows = cleanZeroPrice(connectToSQL('mssql'))
-    print("Sono state cancellati "+str(deleted_rows)+" records con price zero")
+    print("Sono stati cancellati "+str(deleted_rows)+" records con price zero")
+    LOG_insert("file.log", formatLOG , f"Sono stati cancellati "+str(deleted_rows)+" records con price zero", logging.INFO)
     deleted_rows = cleanZeroMQ(connectToSQL('mssql'))
-    print("Sono state cancellati "+str(deleted_rows)+" records con mq zero")
+    print("Sono stati cancellati "+str(deleted_rows)+" records con mq zero")
+    LOG_insert("file.log", formatLOG , f"Sono stati cancellati "+str(deleted_rows)+" records con mq zero", logging.INFO)
 
 
+    LOG_insert("file.log", formatLOG , f"Sync with SQL server", logging.INFO)
     updateRangesMapping(connectToSQL('mssql'),"mysql")
     insertAveragesIfOccurs(connectToSQL('mssql'),"mysql")
     updateAverages(connectToSQL('mssql'),"mysql")
@@ -1335,3 +1350,5 @@ def onlyinsert():
 
     updateExistingOpportunities(connectToSQL('mssql'),"mysql")
     markLostOpportuntiies(connectToSQL('mssql'),"mysql")
+
+    LOG_insert("file.log", formatLOG , f"End of Sync with SQL server", logging.INFO)
