@@ -384,6 +384,38 @@ def cleanZeroMQ(connection):
     connection.close()
     return deleted_row_count
 
+def cleanDuplicatesOnDifferentZones(connection):
+    cursor = connection.cursor()
+    cursor.execute("""
+        delete from mapping where MICROZONE+'_'+ID IN(
+        SELECT mid from(
+        select ROW_NUMBER() over (partition by m1.id order by m1.microzone) as rn,m1.MICROZONE+'_'+M1.ID AS MID from mapping m1 join mapping m2 on m1.ID = m2.ID and m1.MICROZONE<>m2.microzone
+        )s where rn >1
+        );
+        """)
+    deleted_row_count = cursor.rowcount
+    connection.commit()
+    connection.close()
+    return deleted_row_count
+
+def cleanDuplicatesOnSameZone(connection):
+    cursor = connection.cursor()
+    cursor.execute("""
+        DELETE FROM MAPPING WHERE ID IN (
+        SELECT ID FROM (
+        SELECT ROW_NUMBER() OVER (PARTITION BY M1.ID ORDER BY M1.DATA DESC,M1.ID DESC) RN,M1.ID FROM MAPPING M1 JOIN MAPPING M2 ON M1.ID <>M2.ID 
+        AND
+        M1.ADDRESS = M2.ADDRESS AND M1.RANGE=M2.RANGE AND M1.MICROZONE = M2.MICROZONE  AND M1.MQ = M2.MQ AND M1.PRICE = M2.PRICE AND M1.FLOOR = M2.FLOOR AND M1.TOILET=M2.TOILET AND M1.AGENCY = M2.AGENCY
+        )D
+        WHERE RN>1)
+        """)
+    deleted_row_count = cursor.rowcount
+    connection.commit()
+    connection.close()
+    return deleted_row_count
+
+
+
 def cleanOutOfRange(connection,type):
     cursor = connection.cursor()
     if type == 'mysql_old':
@@ -971,6 +1003,88 @@ def markLostOpportuntiies(connection,type):
     connection.commit()
     connection.close()
 
+def onlyScrape():
+    ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
+    DIRECTORY = os.environ.get("DIRECTORY")
+
+    colnames = [
+        'source',
+        'country_code',
+        'region_code',
+        'province_code',
+        'city_code',
+        'zone_code',
+        'zone_desc',
+        'microzone_code',
+        'url',
+        'key']
+    data = pd.read_csv('torino.csv', names=colnames, sep="|",engine='python')
+
+    urls = data.url.tolist()
+    i = 0
+    futures = []
+
+    start_time = time()
+    output_timestamp = datetime.datetime.now().strftime("%Y%m%d")
+    LOG_insert("file.log", formatLOG , "STARTED ON: " + str(output_timestamp), logging.INFO)
+
+    path = os.path.join(ROOT_DIR,"IMMOBILIARE")
+
+    print(path)
+
+    if os.path.exists(path):
+        shutil.rmtree(path)
+        
+    if not os.path.exists(path):
+        os.mkdir(path)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        for index, row in data.iterrows():
+            links = []
+            i = i + 1
+            # path = ROOT_DIR +"\\IMMOBILIARE\\" + str(row['zone_code']) + \
+                # "" + str(row['microzone_code']) + "\\"
+            path = os.path.join(ROOT_DIR,"IMMOBILIARE",str(row['zone_code']) + "" + str(row['microzone_code']))
+            print(path)
+            url = row['url']
+            links = get_links_immobiliare(url)
+            LOG_insert("file.log", formatLOG , str(i) + " lista da link " + url, logging.INFO)
+            #print(str(i) + " lista da link " + url)
+            LOG_insert("file.log", formatLOG , str(i) + "totale links: " + str(len(links)), logging.INFO)
+            #print("totale links: " + str(len(links)))
+            j = 0
+            for s in links:
+                j = j + 1
+                futures.append(
+                    executor.submit(get_data_immobiliare, s, path, str(j), row)
+                )
+    
+    # for index, row in data.iterrows():
+    #     links = []
+    #     i = i + 1
+    #     # path = ROOT_DIR +"\\IMMOBILIARE\\" + str(row['zone_code']) + \
+    #         # "" + str(row['microzone_code']) + "\\"
+    #     path = os.path.join(ROOT_DIR,"IMMOBILIARE",str(row['zone_code']) + "" + str(row['microzone_code']))
+    #     print(path)
+    #     url = row['url']
+    #     links = get_links_immobiliare(url)
+    #     print(str(i) + " lista da link " + url)
+    #     print("totale links: " + str(len(links)))
+    #     j = 0
+    #     for s in links:
+    #         j = j + 1
+    #         get_data_immobiliare(s, path, str(j), row)
+
+
+    end_time = time()
+    elapsed_time = end_time - start_time
+    LOG_insert("file.log", formatLOG ,  f"Elapsed run time SCRAPING: {elapsed_time} seconds", logging.INFO)
+    print(f"Elapsed run time SCRAPING: {elapsed_time} seconds")
+
+    f = open("status.lock", "w+")
+    f.truncate(0)
+    f.write("IDLE")
+    f.close()
 ##########################################################################
 
 
@@ -1030,21 +1144,21 @@ def scrape_and_insert():
                     executor.submit(get_data_immobiliare, s, path, str(j), row)
                 )
     
-    for index, row in data.iterrows():
-        links = []
-        i = i + 1
-        # path = ROOT_DIR +"\\IMMOBILIARE\\" + str(row['zone_code']) + \
-            # "" + str(row['microzone_code']) + "\\"
-        path = os.path.join(ROOT_DIR,"IMMOBILIARE",str(row['zone_code']) + "" + str(row['microzone_code']))
-        print(path)
-        url = row['url']
-        links = get_links_immobiliare(url)
-        print(str(i) + " lista da link " + url)
-        print("totale links: " + str(len(links)))
-        j = 0
-        for s in links:
-            j = j + 1
-            get_data_immobiliare(s, path, str(j), row)
+    # for index, row in data.iterrows():
+    #     links = []
+    #     i = i + 1
+    #     # path = ROOT_DIR +"\\IMMOBILIARE\\" + str(row['zone_code']) + \
+    #         # "" + str(row['microzone_code']) + "\\"
+    #     path = os.path.join(ROOT_DIR,"IMMOBILIARE",str(row['zone_code']) + "" + str(row['microzone_code']))
+    #     print(path)
+    #     url = row['url']
+    #     links = get_links_immobiliare(url)
+    #     print(str(i) + " lista da link " + url)
+    #     print("totale links: " + str(len(links)))
+    #     j = 0
+    #     for s in links:
+    #         j = j + 1
+    #         get_data_immobiliare(s, path, str(j), row)
 
 
     end_time = time()
@@ -1098,7 +1212,9 @@ def scrape_and_insert():
     deleted_rows = cleanZeroMQ(connectToSQL('mssql'))
     print("Sono stati cancellati "+str(deleted_rows)+" records con mq zero")
     LOG_insert("file.log", formatLOG , f"Sono stati cancellati "+str(deleted_rows)+" records con mq zero", logging.INFO)
-
+    delete_rows = cleanDuplicatesOnDifferentZones(connectToSQL('mssql'))
+    print("Sono stati cancellati "+str(deleted_rows)+" records duplicati su zone diverse")
+    LOG_insert("file.log", formatLOG , f"Sono stati cancellati "+str(deleted_rows)+" duplicati su zone diverse", logging.INFO)
 
     LOG_insert("file.log", formatLOG , f"Sync with SQL server", logging.INFO)
     updateRangesMapping(connectToSQL('mssql'),"mysql")
@@ -1279,7 +1395,10 @@ def scrape_and_insert():
     # updateExistingOpportunities(connectToSQLite(),"sqlite")
     # markLostOpportuntiies(connectToSQLite(),"sqlite")
     # conn.close()
-
+    f = open("status.lock", "w+")
+    f.truncate(0)
+    f.write("IDLE")
+    f.close()
 
 def only_insert():
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
@@ -1331,7 +1450,9 @@ def only_insert():
     deleted_rows = cleanZeroMQ(connectToSQL('mssql'))
     print("Sono stati cancellati "+str(deleted_rows)+" records con mq zero")
     LOG_insert("file.log", formatLOG , f"Sono stati cancellati "+str(deleted_rows)+" records con mq zero", logging.INFO)
-
+    delete_rows = cleanDuplicatesOnDifferentZones(connectToSQL('mssql'))
+    print("Sono stati cancellati "+str(deleted_rows)+" records duplicati su zone diverse")
+    LOG_insert("file.log", formatLOG , f"Sono stati cancellati "+str(deleted_rows)+" duplicati su zone diverse", logging.INFO)
 
     LOG_insert("file.log", formatLOG , f"Sync with SQL server", logging.INFO)
     updateRangesMapping(connectToSQL('mssql'),"mysql")
@@ -1352,3 +1473,7 @@ def only_insert():
     markLostOpportuntiies(connectToSQL('mssql'),"mysql")
 
     LOG_insert("file.log", formatLOG , f"End of Sync with SQL server", logging.INFO)
+    f = open("status.lock", "w+")
+    f.truncate(0)
+    f.write("IDLE")
+    f.close()

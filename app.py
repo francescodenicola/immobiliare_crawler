@@ -106,6 +106,21 @@ def onlyInsert(background_tasks: BackgroundTasks):
     else:
         return HTTPException(status_code=423)
 
+@app.post("/onlyscrape/")
+def onlyInsert(background_tasks: BackgroundTasks):
+    f = open("status.lock", "r")
+    a = f.read()
+    f.close()
+    if a == 'IDLE':
+        f = open("status.lock", "w+")
+        f.truncate(0)
+        f.write("IN PROGRESS")
+        f.close()
+        background_tasks.add_task(crawler.onlyScrape)
+        return {"message": "Notification sent in the background"}
+    else:
+        return HTTPException(status_code=423)
+
 @app.post("/switch/")
 def switchOnFail():
     f = open("status.lock", "r")
