@@ -251,7 +251,6 @@ def cleanDataImmobiliare(json_object):
         floor = "N.A."
 
         try:
-            # must be surrounded by try / except
             if len(json_object["listing"]["properties"][0]
                 ["surfaceConstitution"]["surfaceConstitutionElements"]) > 0:
                 if str(json_object["listing"]["properties"][0]["surfaceConstitution"]
@@ -310,6 +309,14 @@ def cleanDataImmobiliare(json_object):
         floor = floor.replace("° piano","")
 
         auction = 0
+        try:
+            inAsta = json_object["trovakasa"]["inAsta"]
+            if inAsta > 0:
+                auction = 1
+        except:
+            auction = 0
+            pass
+        
         #flag per cancellare nuove costruzioni
         if(json_object["listing"]["properties"][0]["condition"]!=None):
             if json_object["listing"]["properties"][0]["condition"]["id"]== "1":
@@ -1008,6 +1015,9 @@ def onlyScrape():
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
     DIRECTORY = os.environ.get("DIRECTORY")
 
+    file = open("file.log","w")
+    file.close()
+
     colnames = [
         'source',
         'country_code',
@@ -1092,6 +1102,9 @@ def onlyScrape():
 def scrape_and_insert():
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
     DIRECTORY = os.environ.get("DIRECTORY")
+
+    file = open("file.log","w")
+    file.close()
 
     colnames = [
         'source',
