@@ -4,3 +4,4 @@
 /utils/sqlite/__pycache__
 .env
 .env
+/file.log

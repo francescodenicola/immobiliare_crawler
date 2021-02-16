@@ -107,7 +107,7 @@ def onlyInsert(background_tasks: BackgroundTasks):
         return HTTPException(status_code=423)
 
 @app.post("/onlyscrape/")
-def onlyInsert(background_tasks: BackgroundTasks):
+def onlyScrape(background_tasks: BackgroundTasks):
     f = open("status.lock", "r")
     a = f.read()
     f.close()
