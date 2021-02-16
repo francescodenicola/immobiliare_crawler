@@ -593,7 +593,7 @@ def updateOpportunitiesValues(connection,type):
                 from Mapping JOIN Opportunity ON Mapping.ID = Opportunity.ID INNER JOIN  Averages ON 
                 concat(Mapping.MICROZONE, '_', Mapping.RANGE)  = Averages.MZ_RANGE  
         )ABB
-        on ID = ABB.ID
+        on Opportunity.ID = ABB.ID
         """
     elif type == "sqlite":
         cursor.execute(
