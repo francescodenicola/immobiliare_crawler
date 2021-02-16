@@ -948,18 +948,18 @@ def updateExistingOpportunities(connection,type):
         SET 
         Opportunity.DATA = Mapping_abbattuto.DATA,
         Opportunity.PRICE = Mapping_abbattuto.PRICE,
-        Opportunity.PRICE_MQ = (Mapping_abbattuto.PRICE / Mapping_abbattuto.MQ),
+        Opportunity.PRICE_MQ = (cast(Mapping_abbattuto.PRICE as int)/ cast(Mapping_abbattuto.MQ as int)),
         Opportunity.SCOSTAMENTO = Mapping_abbattuto.ABBATTIMENTO,
-        Opportunity.UPDATED = CASE WHEN Opportunity.SCOSTAMENTO < Mapping_abbattuto.ABBATTIMENTO THEN 'RIBASSATO' WHEN Opportunity.SCOSTAMENTO < Mapping_abbattuto.ABBATTIMENTO THEN 'RIALZATO' ELSE FALSE END
+        Opportunity.UPDATED = CASE WHEN Opportunity.SCOSTAMENTO < Mapping_abbattuto.ABBATTIMENTO THEN 'RIBASSATO' WHEN Opportunity.SCOSTAMENTO < Mapping_abbattuto.ABBATTIMENTO THEN 'RIALZATO' ELSE '0' END
         from Opportunity
         JOIN
         (select case when Averages.RANGE = '0_50' OR Averages.RANGE = '51_70' then (Mapping.Price - Averages.PRICE_ABBATTUTO) / Averages.PRICE_ABBATTUTO
         ELSE
-        ((Mapping.PRICE / Mapping.MQ) - Averages.PRICE_ABBATTUTO_MQ) / Averages.PRICE_ABBATTUTO_MQ
+        ((cast(Mapping.PRICE as int)/ cast(Mapping.MQ as int)) - cast(Averages.PRICE_ABBATTUTO_MQ as int)) / cast(Averages.PRICE_ABBATTUTO_MQ as int)
         END
         as ABBATTIMENTO
         , Mapping.* from Mapping join Averages ON
-        concat(Mapping.MICROZONE,"_", Mapping.RANGE) = Averages.MZ_RANGE
+        concat(Mapping.MICROZONE,'_', Mapping.RANGE) = Averages.MZ_RANGE
         )Mapping_abbattuto on Mapping_abbattuto.ID = Opportunity.ID
         WHERE Mapping_abbattuto.ID = Opportunity.ID and Mapping_abbattuto.PRICE <> Opportunity.PRICE
         """
@@ -982,6 +982,7 @@ def updateExistingOpportunities(connection,type):
         UPDATED = (SELECT CASE WHEN Opportunity.PRICE > Mapping.PRICE THEN 'RIBASSATO' WHEN Opportunity.PRICE < Mapping.PRICE THEN 'RIALZATO' ELSE FALSE END FROM Mapping where Mapping.ID = Opportunity.ID)
         """
         )
+        
     connection.commit()
     connection.close()
 
@@ -1215,6 +1216,9 @@ def scrape_and_insert():
     delete_rows = cleanDuplicatesOnDifferentZones(connectToSQL('mssql'))
     print("Sono stati cancellati "+str(deleted_rows)+" records duplicati su zone diverse")
     LOG_insert("file.log", formatLOG , f"Sono stati cancellati "+str(deleted_rows)+" duplicati su zone diverse", logging.INFO)
+    delete_rows = cleanDuplicatesOnSameZone(connectToSQL('mssql'))
+    print("Sono stati cancellati "+str(deleted_rows)+" records duplicati su zone uguali")
+    LOG_insert("file.log", formatLOG , f"Sono stati cancellati "+str(deleted_rows)+" duplicati su zone uguali", logging.INFO)
 
     LOG_insert("file.log", formatLOG , f"Sync with SQL server", logging.INFO)
     updateRangesMapping(connectToSQL('mssql'),"mysql")
@@ -1453,6 +1457,9 @@ def only_insert():
     delete_rows = cleanDuplicatesOnDifferentZones(connectToSQL('mssql'))
     print("Sono stati cancellati "+str(deleted_rows)+" records duplicati su zone diverse")
     LOG_insert("file.log", formatLOG , f"Sono stati cancellati "+str(deleted_rows)+" duplicati su zone diverse", logging.INFO)
+    delete_rows = cleanDuplicatesOnSameZone(connectToSQL('mssql'))
+    print("Sono stati cancellati "+str(deleted_rows)+" records duplicati su zone uguali")
+    LOG_insert("file.log", formatLOG , f"Sono stati cancellati "+str(deleted_rows)+" duplicati su zone uguali", logging.INFO)
 
     LOG_insert("file.log", formatLOG , f"Sync with SQL server", logging.INFO)
     updateRangesMapping(connectToSQL('mssql'),"mysql")
