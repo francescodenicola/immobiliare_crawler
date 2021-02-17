@@ -1011,6 +1011,23 @@ def markLostOpportuntiies(connection,type):
     connection.commit()
     connection.close()
 
+def deleteNotInterestingOpps(connection,type):
+    cursor = connection.cursor()
+    if type == 'mysql':
+        a = cursor.execute(
+            """
+            DELETE FROM Opportunity WHERE SCOSTAMENTO > 0.1
+            """
+        )
+    elif type == 'sqlite':
+        a = cursor.execute(
+            """
+            DELETE FROM Opportunity WHERE SCOSTAMENTO > 0.1
+            """
+        )
+    connection.commit()
+    connection.close()
+
 def onlyScrape():
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
     DIRECTORY = os.environ.get("DIRECTORY")
@@ -1250,6 +1267,8 @@ def scrape_and_insert():
 
     updateExistingOpportunities(connectToSQL('mssql'),"mysql")
     markLostOpportuntiies(connectToSQL('mssql'),"mysql")
+
+    deleteNotInterestingOpps(connectToSQL('mssql'),"mysql")
 
     LOG_insert("file.log", formatLOG , f"End of Sync with SQL server", logging.INFO)
 
@@ -1491,6 +1510,8 @@ def only_insert():
 
     updateExistingOpportunities(connectToSQL('mssql'),"mysql")
     markLostOpportuntiies(connectToSQL('mssql'),"mysql")
+
+    deleteNotInterestingOpps(connectToSQL('mssql'),"mysql")
 
     LOG_insert("file.log", formatLOG , f"End of Sync with SQL server", logging.INFO)
     f = open("status.lock", "w+")
