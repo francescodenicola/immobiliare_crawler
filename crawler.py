@@ -456,7 +456,6 @@ def cleanOutOfRange(connection,type):
                     from Mapping INNER JOIN  Averages ON 
                     concat(Mapping.MICROZONE, '_', Mapping.RANGE)  = Averages.MZ_RANGE
             )del where ABBATTIMENTO > 1
- 
             )
             """
         )
@@ -1268,6 +1267,7 @@ def scrape_and_insert():
     updateExistingOpportunities(connectToSQL('mssql'),"mysql")
     markLostOpportuntiies(connectToSQL('mssql'),"mysql")
 
+    updateOpportunitiesValues(connectToSQL('mssql'),"mysql")
     deleteNotInterestingOpps(connectToSQL('mssql'),"mysql")
 
     LOG_insert("file.log", formatLOG , f"End of Sync with SQL server", logging.INFO)
@@ -1511,6 +1511,7 @@ def only_insert():
     updateExistingOpportunities(connectToSQL('mssql'),"mysql")
     markLostOpportuntiies(connectToSQL('mssql'),"mysql")
 
+    updateOpportunitiesValues(connectToSQL('mssql'),"mysql")
     deleteNotInterestingOpps(connectToSQL('mssql'),"mysql")
 
     LOG_insert("file.log", formatLOG , f"End of Sync with SQL server", logging.INFO)
