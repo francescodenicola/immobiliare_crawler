@@ -588,14 +588,16 @@ def updateOpportunitiesValues(connection,type):
         UPDATE Opportunity
         SET Opportunity.PRICE = ABB.P,
         Opportunity.PRICE_MQ = ABB.PMQ,
-        Opportunity.SCOSTAMENTO = ABB.ABBATTIMENTO
+        Opportunity.SCOSTAMENTO = ABB.ABBATTIMENTO,
+        Opportunity.MICROZONE = ABB.MICROZONE,
+        Opportunity.MZ_RANGE = ABB.MZ_RANGE
         FROM Opportunity
         JOIN
         (select Mapping.ID as ID,try_cast(try_cast(Mapping.Price as numeric) as int) as P, Mapping.PRICE/try_cast(try_cast(Mapping.MQ as numeric) as int)  as PMQ, case when Averages.RANGE = '0_50' OR Averages.RANGE = '51_70' then (try_cast(try_cast(Mapping.Price as numeric) as float) - try_cast(try_cast(Averages.PRICE_ABBATTUTO as numeric) as float) ) / try_cast(try_cast(Averages.PRICE_ABBATTUTO as numeric) as float) 
                 ELSE
                 ((try_cast(try_cast(Mapping.Price as numeric) as float) / try_cast(try_cast(Mapping.MQ as numeric) as float) ) - try_cast(try_cast(Averages.PRICE_ABBATTUTO_MQ as numeric) as int)) / try_cast(try_cast(Averages.PRICE_ABBATTUTO_MQ as numeric) as float)
                 END
-                as ABBATTIMENTO
+                as ABBATTIMENTO,Mapping.MICROZONE, Averages.MZ_RANGE
                 from Mapping JOIN Opportunity ON Mapping.ID = Opportunity.ID INNER JOIN  Averages ON 
                 concat(Mapping.MICROZONE, '_', Mapping.RANGE)  = Averages.MZ_RANGE  
         )ABB
