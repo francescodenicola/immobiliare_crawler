@@ -459,6 +459,14 @@ def cleanOutOfRange(connection,type):
             )
             """
         )
+
+        cursor.execute(
+            """
+            delete from Mapping 
+            where price > 10000000
+            )
+            """
+        )
     elif type == 'sqlite':
         cursor.execute(
             """
@@ -1032,7 +1040,8 @@ def deleteNotInterestingOpps(connection,type):
 def onlyScrape():
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
     DIRECTORY = os.environ.get("DIRECTORY")
-
+    WORKERS = os.environ.get("WORKERS")
+    
     file = open("file.log","w")
     file.close()
 
@@ -1067,7 +1076,7 @@ def onlyScrape():
     if not os.path.exists(path):
         os.mkdir(path)
 
-    with ThreadPoolExecutor(max_workers=2) as executor:
+    with ThreadPoolExecutor(max_workers=int(WORKERS)) as executor:
         for index, row in data.iterrows():
             links = []
             i = i + 1
@@ -1120,6 +1129,7 @@ def onlyScrape():
 def scrape_and_insert():
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
     DIRECTORY = os.environ.get("DIRECTORY")
+    WORKERS = os.environ.get("WORKERS")
 
     file = open("file.log","w")
     file.close()
@@ -1155,7 +1165,7 @@ def scrape_and_insert():
     if not os.path.exists(path):
         os.mkdir(path)
 
-    with ThreadPoolExecutor(max_workers=2) as executor:
+    with ThreadPoolExecutor(max_workers=int(WORKERS)) as executor:
         for index, row in data.iterrows():
             links = []
             i = i + 1
