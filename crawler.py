@@ -230,10 +230,11 @@ def cleanDataImmobiliare(json_object):
             pass
 
         if mq != "N.A.":
-            mq = mq.replace(",",".")
-            if mq.find(".")!=-1:
-                mq_tmp = mq.split(".")
+            mq = mq.replace(",","|")
+            if mq.find("|")!=-1:
+                mq_tmp = mq.split("|")
                 mq = mq_tmp[0]
+            mq = mq.replace(".","")
             
 
         range = 'tbl'
@@ -385,7 +386,7 @@ def cleanZeroPrice(connection):
 
 def cleanZeroMQ(connection):
     cursor = connection.cursor()
-    cursor.execute("DELETE FROM Mapping WHERE MQ = '';")
+    cursor.execute("DELETE FROM Mapping WHERE MQ = '' or cast(MQ as int) < 10;")
     deleted_row_count = cursor.rowcount
     connection.commit()
     connection.close()
@@ -495,6 +496,9 @@ def updateRangesMapping(connection,type):
         cursor.execute("UPDATE Mapping INNER JOIN Ranges on CONVERT(CAST(Mapping.MQ AS DECIMAL(10,6)),UNSIGNED INTEGER) >= Ranges.MIN and CONVERT(CAST(Mapping.MQ AS DECIMAL(10,6)),UNSIGNED INTEGER) <= Ranges.MAX SET Mapping.RANGE = Ranges.RANGE ;")
     elif type == "mysql":
         cursor.execute("UPDATE Mapping SET Mapping.RANGE = Ranges.RANGE from mapping INNER JOIN Ranges on CONVERT(INTEGER,TRY_CAST(Mapping.MQ AS DECIMAL(10,6))) >= Ranges.MIN and CONVERT(INTEGER,TRY_CAST(Mapping.MQ AS DECIMAL(10,6))) <= Ranges.MAX ")
+        connection.commit()
+        cursor.execute("UPDATE Mapping set Mapping.RANGE = '111_500' where Mapping.RANGE = 'tbl' and cast(Mapping.MQ as int) > 500 ")
+        connection.commit()
     elif type == "sqlite":
         cursor.execute(
             """
