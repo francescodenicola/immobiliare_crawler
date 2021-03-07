@@ -460,12 +460,17 @@ def cleanOutOfRange(connection,type):
             """
         )
 
+        connection.commit()
+
         cursor.execute(
             """
             delete from Mapping 
             where price > 10000000
             """
         )
+
+        connection.commit()
+        connection.close()
     elif type == 'sqlite':
         cursor.execute(
             """
