@@ -464,7 +464,6 @@ def cleanOutOfRange(connection,type):
             """
             delete from Mapping 
             where price > 10000000
-            )
             """
         )
     elif type == 'sqlite':
