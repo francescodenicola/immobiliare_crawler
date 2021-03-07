@@ -450,7 +450,7 @@ def cleanOutOfRange(connection,type):
             select del.ID from(
             select Mapping.id,case when Averages.RANGE = '0_50' OR Averages.RANGE = '51_70' then (Mapping.Price - Averages.PRICE_ABBATTUTO) / Averages.PRICE_ABBATTUTO
                     ELSE
-                    ((try_cast(Mapping.PRICE as int) / try_cast(Mapping.MQ as int) ) - try_cast(Averages.PRICE_ABBATTUTO_MQ as int)) / try_cast(Averages.PRICE_ABBATTUTO_MQ as int)
+                    ((try_cast(Mapping.PRICE as float) / try_cast(Mapping.MQ as float) ) - try_cast(Averages.PRICE_ABBATTUTO_MQ as float)) / try_cast(Averages.PRICE_ABBATTUTO_MQ as float)
                     END
                     as ABBATTIMENTO
                     from Mapping INNER JOIN  Averages ON 
