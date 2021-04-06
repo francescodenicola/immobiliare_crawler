@@ -219,13 +219,32 @@ def cleanDataImmobiliare(json_object):
         mq = 0
         
         try:
-            if ((str(json_object["listing"]["properties"][0]["surfaceConstitution"]["totalMainSurface"]) is not None)):
-                mq = str(json_object["listing"]["properties"][0]["surfaceConstitution"]["totalMainSurface"]).split("m\u00b2")[0].strip()
-            if (str(json_object["listing"]["properties"][0]["surfaceValue"]) is not None) and (mq =="None"):
-                mq = str(json_object["listing"]["properties"][0]["surfaceValue"]).split("m\u00b2")[0].strip()
-            if str(json_object["listing"]["properties"][0]["surfaceValue"]) == "None":
-                mq = "n.a."
-        except:
+            if (((json_object["listing"]["properties"][0]["surfaceConstitution"]["totalMainSurface"]) is not None)):
+                if ((str(json_object["listing"]["properties"][0]["surfaceConstitution"]["totalMainSurface"]) != "null")):
+                    mq = str(json_object["listing"]["properties"][0]["surfaceConstitution"]["totalMainSurface"]).split("m\u00b2")[0].strip()
+        except Exception as e:
+            print(str(json_object["listing"]["id"]))
+            print(e)
+            mq = "N.A."
+            pass
+        
+        try:
+            if ((json_object["listing"]["properties"][0]["surfaceValue"]) is not None):
+                if (str(json_object["listing"]["properties"][0]["surfaceValue"]) !='null') and ((mq =="N.A.")or(mq == 0)):
+                    mq = str(json_object["listing"]["properties"][0]["surfaceValue"]).split("m\u00b2")[0].strip()
+        except Exception as e:
+            print(str(json_object["listing"]["id"]))
+            print(e)
+            mq = "N.A."
+            pass
+
+        try:        
+            if str(json_object["listing"]["properties"][0]["surfaceValue"]) == "null":
+                if(mq=="N.A."):
+                    mq = "n.a."
+        except Exception as e:
+            print(str(json_object["listing"]["id"]))
+            print(e)
             mq = "N.A."
             pass
 
@@ -386,7 +405,7 @@ def cleanZeroPrice(connection):
 
 def cleanZeroMQ(connection):
     cursor = connection.cursor()
-    cursor.execute("DELETE FROM Mapping WHERE MQ = '' or cast(MQ as int) < 10;")
+    cursor.execute("DELETE FROM Mapping WHERE MQ = '' or cast(MQ as int) < 10 or cast(MQ as int)>1000 or MQ = 'N.A.';")
     deleted_row_count = cursor.rowcount
     connection.commit()
     connection.close()
@@ -1262,10 +1281,10 @@ def scrape_and_insert():
     deleted_rows = cleanZeroMQ(connectToSQL('mssql'))
     print("Sono stati cancellati "+str(deleted_rows)+" records con mq zero")
     LOG_insert("file.log", formatLOG , f"Sono stati cancellati "+str(deleted_rows)+" records con mq zero", logging.INFO)
-    delete_rows = cleanDuplicatesOnDifferentZones(connectToSQL('mssql'))
+    deleted_rows = cleanDuplicatesOnDifferentZones(connectToSQL('mssql'))
     print("Sono stati cancellati "+str(deleted_rows)+" records duplicati su zone diverse")
     LOG_insert("file.log", formatLOG , f"Sono stati cancellati "+str(deleted_rows)+" duplicati su zone diverse", logging.INFO)
-    delete_rows = cleanDuplicatesOnSameZone(connectToSQL('mssql'))
+    deleted_rows = cleanDuplicatesOnSameZone(connectToSQL('mssql'))
     print("Sono stati cancellati "+str(deleted_rows)+" records duplicati su zone uguali")
     LOG_insert("file.log", formatLOG , f"Sono stati cancellati "+str(deleted_rows)+" duplicati su zone uguali", logging.INFO)
 
@@ -1506,10 +1525,10 @@ def only_insert():
     deleted_rows = cleanZeroMQ(connectToSQL('mssql'))
     print("Sono stati cancellati "+str(deleted_rows)+" records con mq zero")
     LOG_insert("file.log", formatLOG , f"Sono stati cancellati "+str(deleted_rows)+" records con mq zero", logging.INFO)
-    delete_rows = cleanDuplicatesOnDifferentZones(connectToSQL('mssql'))
+    deleted_rows = cleanDuplicatesOnDifferentZones(connectToSQL('mssql'))
     print("Sono stati cancellati "+str(deleted_rows)+" records duplicati su zone diverse")
     LOG_insert("file.log", formatLOG , f"Sono stati cancellati "+str(deleted_rows)+" duplicati su zone diverse", logging.INFO)
-    delete_rows = cleanDuplicatesOnSameZone(connectToSQL('mssql'))
+    deleted_rows = cleanDuplicatesOnSameZone(connectToSQL('mssql'))
     print("Sono stati cancellati "+str(deleted_rows)+" records duplicati su zone uguali")
     LOG_insert("file.log", formatLOG , f"Sono stati cancellati "+str(deleted_rows)+" duplicati su zone uguali", logging.INFO)
 
