@@ -223,8 +223,8 @@ def cleanDataImmobiliare(json_object):
                 if ((str(json_object["listing"]["properties"][0]["surfaceConstitution"]["totalMainSurface"]) != "null")):
                     mq = str(json_object["listing"]["properties"][0]["surfaceConstitution"]["totalMainSurface"]).split("m\u00b2")[0].strip()
         except Exception as e:
-            print(str(json_object["listing"]["id"]))
-            print(e)
+            # print(str(json_object["listing"]["id"]))
+            # print(e)
             mq = "N.A."
             pass
         
@@ -233,8 +233,8 @@ def cleanDataImmobiliare(json_object):
                 if (str(json_object["listing"]["properties"][0]["surfaceValue"]) !='null') and ((mq =="N.A.")or(mq == 0)):
                     mq = str(json_object["listing"]["properties"][0]["surfaceValue"]).split("m\u00b2")[0].strip()
         except Exception as e:
-            print(str(json_object["listing"]["id"]))
-            print(e)
+            # print(str(json_object["listing"]["id"]))
+            # print(e)
             mq = "N.A."
             pass
 
@@ -243,8 +243,8 @@ def cleanDataImmobiliare(json_object):
                 if(mq=="N.A."):
                     mq = "n.a."
         except Exception as e:
-            print(str(json_object["listing"]["id"]))
-            print(e)
+            # print(str(json_object["listing"]["id"]))
+            # print(e)
             mq = "N.A."
             pass
 
