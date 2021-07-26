@@ -1475,7 +1475,7 @@ def scrape_and_insert():
     f.write("IDLE")
     f.close()
 
-def only_insert():
+def insert():
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
     DIRECTORY = os.environ.get("DIRECTORY")
 

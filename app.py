@@ -1,20 +1,47 @@
+from schemas.Opportunity import Opportunity
 from starlette.staticfiles import StaticFiles
 from starlette.responses import RedirectResponse,Response,StreamingResponse
 from starlette.templating import Jinja2Templates
 from loguru import logger
 import datetime, time
-from fastapi import BackgroundTasks, FastAPI,Request, Form, HTTPException
+from fastapi import BackgroundTasks, FastAPI,Request, Form, HTTPException, Depends, HTTPException, Query
 import uvicorn
 import crawler as crawler
 from multiprocessing import Process
-
+from database import Session, get_Session
+from schemas.Opportunity import Opportunity
+from typing import List, Optional
+from fastapi.middleware.cors import CORSMiddleware
 # configure logger
 logger.add("static/job.log", format="{time} - {message}")
 
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=['*'],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+def get_db():
+
+    user_schema = ""
+
+    try:
+
+          
+        #get current Session
+        db = get_Session()
+
+        yield db
+    except Exception as e:
+        print("[ERROR] : " + str(e))
+    finally:
+        db.close()
 
 def follow(thefile):
      while True:
@@ -76,6 +103,44 @@ def scrapeNow(request: Request,background_tasks: BackgroundTasks):
     else:
         return RedirectResponse(url='/')
 
+# @app.get("/opportunities")
+# def getOpps(db: Session = Depends(get_db), response_model = List[Opportunity]):
+
+#     opps = []
+#     try:
+#         response = db.execute("""
+#             select TOP 10 data_opp as DATE,country as COUNTRY,region as REGION,province as PROVINCE,city as CITY,microzone as MICROZONE,id as ID,url as URL,address as ADDRESS,mq as MQ,piano as FLOOR,price as PRICE,agenzia as AGENCY
+#             from opportunity
+#             where UPDATED <> 'LOST OPP!'
+#             ORDER BY DATA_OPP DESC
+#         """)
+#         if (response is None):
+#                 error = "[ERROR] : #0 rows affected."
+#                 raise Exception(error)
+#         rows = 0
+#         for row in response:
+#                 rows = rows + 1
+#                 opps.append(
+#                     Opportunity.construct(
+#                         DATE=str(row.DATE),
+#                         COUNTRY=str(row.COUNTRY),
+#                         REGION=str(row.REGION),
+#                         PROVINCE=str(row.PROVINCE),
+#                         CITY=str(row.CITY),
+#                         MICROZONE=str(row.MICROZONE),
+#                         ID=str(row.ID),
+#                         URL=str(row.URL),
+#                         ADDRESS=str(row.ADDRESS),
+#                         FLOOR=str(row.FLOOR),
+#                         PRICE=str(row.PRICE),
+#                         AGENCY=str(row.AGENCY)
+#                     )
+#                 )
+#     except Exception as e:
+#         print(str(e))
+#         raise HTTPException(status_code=204)
+#     return opps
+
 @app.post("/scrapeandinsert/")
 def scrapeAndInsert(background_tasks: BackgroundTasks):
     f = open("status.lock", "r")
@@ -101,7 +166,7 @@ def onlyInsert(background_tasks: BackgroundTasks):
         f.truncate(0)
         f.write("IN PROGRESS")
         f.close()
-        background_tasks.add_task(crawler.only_insert)
+        background_tasks.add_task(crawler.insert)
         return {"message": "Notification sent in the background"}
     else:
         return HTTPException(status_code=423)
@@ -149,6 +214,6 @@ def getStatus():
     return {"message": "The current state is "+a}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=5000)
+    uvicorn.run(app, host="127.0.0.1", port=8000)
 
 
